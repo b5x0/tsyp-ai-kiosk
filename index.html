@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TSYP AI Kiosk</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="static-logo">
+        <img src="assets/ieee_logo.png" alt="IEEE Logo" class="top-logo">
+        <div class="logo-sep"></div> 
+        <img src="assets/tsyp_logo.png" alt="TSYP Logo" class="top-logo">
+    </div>
+
+    <div id="starfall"></div>
+
+    <div id="idle-screen" class="screen active">
+        <h1>TSYP AI Kiosk</h1>
+        <p>Tap to Wake Up</p>
+        <button id="start-btn" class="btn">Start Session</button>
+    </div>
+
+    <div id="language-screen" class="screen hidden">
+        <h2>Select Language</h2>
+        <div class="flag-container">
+            <button class="flag-btn" onclick="selectLanguage('en')">
+                <span class="flag-icon">🇺🇸</span> English
+            </button>
+            <button class="flag-btn" onclick="selectLanguage('fr')">
+                <span class="flag-icon">🇫🇷</span> Français
+            </button>
+            <button class="flag-btn" onclick="selectLanguage('ar')">
+                <span class="flag-icon">🇹🇳</span> 
+                Tounsi <span class="beta-badge">BETA</span>
+            </button>
+        </div>
+        <button class="back-btn-small" onclick="goToIdle()">❮ Cancel</button>
+    </div>
+
+    <div id="main-screen" class="screen hidden">
+        
+        <button id="exit-btn" onclick="fullReset()">Exit Session</button>
+
+        <div id="presentation-area">
+            <img id="presentation-img" src="" alt="Slide">
+        </div>
+
+        <div id="galaxy-view">
+             <div class="orb-container">
+                <div class="energy-ring ring-1"></div>
+                <div class="energy-ring ring-2"></div>
+                <div class="energy-ring ring-3"></div>
+                <div class="orb-core-glow"></div>
+                <div class="orb-core"></div>
+                <div class="particles">
+                    <span></span><span></span><span></span>
+                </div>
+             </div>
+        </div>
+
+        <div id="subtitles-container">
+            <div id="ai-subtitles" class="subtitle-text"></div>
+            <div id="user-subtitles" class="subtitle-text user-sub hidden-sub"></div>
+        </div>
+
+        <div id="nav-controls" class="hidden">
+            <button id="prev-btn" class="nav-btn" onclick="prevSlide()">❮ Back</button>
+            <button id="ask-btn">🎤 Ask Question</button>
+            <button id="next-btn" class="nav-btn" onclick="nextSlide()">Next ❯</button>
+        </div>
+
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
