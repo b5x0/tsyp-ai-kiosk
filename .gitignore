@@ -4,4 +4,4 @@ __pycache__/
 audio_cache/
 audio_cache_pre/
 *.pyc
-.DS_Store
+.DS_Store*.wav

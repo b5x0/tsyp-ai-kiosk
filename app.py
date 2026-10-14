@@ -287,12 +287,32 @@ def clean_for_speech(text, lang="ar"):
         for pattern, replacement in PHONETIC_MAP_AR:
             cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
     elif lang == "en":
+        cleaned = re.sub(r"\bIEEE ISSAT Sousse\b", "I-triple-E ISSAT Sousse", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"\bIEEE\b", "I-triple-E", cleaned)
+        cleaned = re.sub(r"\bISSAT Sousse\b", "Issat Sousse", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\bISSATSO\b", "Issat Sousse", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\bTSYP 14\b", "T-S-Y-P 14", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"\bTSYP\b", "T-S-Y-P", cleaned)
+        cleaned = re.sub(r"\bCS\b", "Computer Society", cleaned)
+        cleaned = re.sub(r"\bRAS\b", "Robotics and Automation Society", cleaned)
+        cleaned = re.sub(r"\bPES\b", "Power and Energy Society", cleaned)
+        cleaned = re.sub(r"\bIAS\b", "Industry Applications Society", cleaned)
+        cleaned = re.sub(r"\bWIE\b", "Women in Engineering", cleaned)
+        cleaned = re.sub(r"\bSIGHT\b", "Sight", cleaned)
     elif lang == "fr":
-        cleaned = re.sub(r"\bl\x27IEEE\b", "l\x27I triple E", cleaned)
+        cleaned = re.sub(r"\bl\x27IEEE ISSAT Sousse\b", "l'I triple E ISSAT Sousse", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\bl\x27IEEE\b", "l'I triple E", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"\bIEEE\b", "I triple E", cleaned)
+        cleaned = re.sub(r"\bISSAT Sousse\b", "Issat Sousse", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\bISSATSO\b", "Issat Sousse", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\bTSYP 14\b", "T-S-Y-P 14", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"\bTSYP\b", "T-S-Y-P", cleaned)
+        cleaned = re.sub(r"\bCS\b", "Computer Society", cleaned)
+        cleaned = re.sub(r"\bRAS\b", "R-A-S", cleaned)
+        cleaned = re.sub(r"\bPES\b", "P-E-S", cleaned)
+        cleaned = re.sub(r"\bIAS\b", "I-A-S", cleaned)
+        cleaned = re.sub(r"\bWIE\b", "W-I-E", cleaned)
+        cleaned = re.sub(r"\bSIGHT\b", "Sight", cleaned)
     return re.sub(r"\s+", " ", cleaned).strip()
 
 VOICE_CONFIG = {
@@ -302,7 +322,7 @@ VOICE_CONFIG = {
 }
 
 def synthesize_neural_voice(text, lang_suffix="en"):
-    """Synthesizes high-fidelity regional speech using edge-tts."""
+    """Synthesizes high-fidelity regional speech using edge-tts (Fallback engine)."""
     voice = VOICE_CONFIG.get(lang_suffix, VOICE_CONFIG["en"])
     speech_text = clean_for_speech(text, lang_suffix)
 
@@ -326,14 +346,25 @@ def synthesize_neural_voice(text, lang_suffix="en"):
     return None, None
 
 def synthesize_vertex_gemini_voice(text, lang_suffix="en"):
-    """Synthesizes conversational speech using Vertex AI gemini-2.5-flash-tts."""
+    """Synthesizes conversational, human-sounding speech using Vertex AI gemini-2.5-flash-tts.
+    Voices:
+      - Puck: Upbeat, lively, warm conversational podcast/guide style (EN)
+      - Aoede: Natural, relaxed, fluent female voice (FR & AR)
+    """
     if not vertex_client:
         return None, None
     try:
-        voice_name = "Aoede" if lang_suffix == "en" else "Puck"
+        voice_map = {
+            "en": "Puck",
+            "fr": "Aoede",
+            "ar": "Aoede"
+        }
+        voice_name = voice_map.get(lang_suffix, "Puck")
+        speech_text = clean_for_speech(text, lang_suffix)
+        
         resp = vertex_client.models.generate_content(
             model="gemini-2.5-flash-tts",
-            contents=clean_for_speech(text, lang_suffix),
+            contents=speech_text,
             config=types.GenerateContentConfig(
                 response_modalities=["AUDIO"],
                 speech_config=types.SpeechConfig(
@@ -357,48 +388,51 @@ def synthesize_vertex_gemini_voice(text, lang_suffix="en"):
     return None, None
 
 def get_or_generate_audio(text, cache_key, lang_suffix):
-    """Retrieves cached audio or generates fresh audio live with zero delay."""
-    # Check MP3 cache
-    mp3_path = os.path.join(CACHE_DIR, f"{cache_key}.mp3")
-    if os.path.exists(mp3_path):
-        with open(mp3_path, "rb") as f:
-            return base64.b64encode(f.read()).decode('utf-8'), "mp3"
-
-    # Check WAV cache
+    """Retrieves cached audio or generates fresh audio live with zero delay.
+    Prioritizes Gemini 2.5 Flash TTS for ultra-natural human conversational voice.
+    """
+    # 1. Check WAV cache (Gemini-TTS)
     wav_path = os.path.join(CACHE_DIR, f"{cache_key}.wav")
     if os.path.exists(wav_path):
         with open(wav_path, "rb") as f:
             return base64.b64encode(f.read()).decode('utf-8'), "wav"
 
-    # 1. Primary: Regional Neural Voice
-    audio_b64, fmt = synthesize_neural_voice(text, lang_suffix)
-    if audio_b64:
-        with open(mp3_path, "wb") as f:
-            f.write(base64.b64decode(audio_b64))
-        return audio_b64, "mp3"
+    # 2. Check MP3 cache
+    mp3_path = os.path.join(CACHE_DIR, f"{cache_key}.mp3")
+    if os.path.exists(mp3_path):
+        with open(mp3_path, "rb") as f:
+            return base64.b64encode(f.read()).decode('utf-8'), "mp3"
 
-    # 2. Fallback: Vertex Gemini Voice
+    # 3. PRIMARY: Google Vertex AI Gemini-TTS
     audio_b64, fmt = synthesize_vertex_gemini_voice(text, lang_suffix)
     if audio_b64:
         with open(wav_path, "wb") as f:
             f.write(base64.b64decode(audio_b64))
         return audio_b64, "wav"
 
+    # 4. FALLBACK: Neural Voice (Edge-TTS)
+    audio_b64, fmt = synthesize_neural_voice(text, lang_suffix)
+    if audio_b64:
+        with open(mp3_path, "wb") as f:
+            f.write(base64.b64decode(audio_b64))
+        return audio_b64, "mp3"
+
     return None, None
 
 def preheat_tour_cache():
-    """Pre-generates concise 3-5s tour audio for all 14 archipelago nodes."""
+    """Pre-generates concise 3-5s tour audio for all 14 archipelago nodes using Gemini Flash TTS."""
     print("==================================================")
-    print("🚀 INITIALIZING: Audio Tour Pre-warming (14 Archipelago Nodes)")
+    print("🚀 INITIALIZING: Audio Tour Pre-warming with Gemini-TTS (14 Nodes)")
     count = 0
     for node_id in CHAPTER_ORDER:
         data = TOUR_DATA[node_id]
         for lang_code in ['en', 'fr', 'ar']:
             key = f"{node_id}_{lang_code}"
             text = data[f"text_{lang_code}"]
+            wav_file = os.path.join(CACHE_DIR, f"{key}.wav")
             mp3_file = os.path.join(CACHE_DIR, f"{key}.mp3")
-            if not os.path.exists(mp3_file):
-                print(f"   🎙️ Synthesizing {key}...", end=" ", flush=True)
+            if not os.path.exists(wav_file) and not os.path.exists(mp3_file):
+                print(f"   🎙️ Synthesizing {key} with Gemini-TTS...", end=" ", flush=True)
                 audio_b64, _ = get_or_generate_audio(text, key, lang_code)
                 if audio_b64:
                     print("✅")
@@ -511,10 +545,10 @@ def chat_router():
         }
         ai_reply_text = fallbacks.get(suffix, fallbacks["en"])
 
-    # Real-Time Live Speech Synthesis
-    audio_b64, audio_fmt = synthesize_neural_voice(ai_reply_text, suffix)
+    # Real-Time Live Speech Synthesis (Gemini Conversational Voice as Primary)
+    audio_b64, audio_fmt = synthesize_vertex_gemini_voice(ai_reply_text, suffix)
     if not audio_b64:
-        audio_b64, audio_fmt = synthesize_vertex_gemini_voice(ai_reply_text, suffix)
+        audio_b64, audio_fmt = synthesize_neural_voice(ai_reply_text, suffix)
 
     return jsonify({
         "mode": "CHAT",

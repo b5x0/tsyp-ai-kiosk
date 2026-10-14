@@ -31,7 +31,7 @@
         </div>
 
         <div class="header-actions">
-            <div class="lang-selector-group">
+            <div id="top-lang-group" class="lang-selector-group hidden-on-welcome">
                 <button class="lang-chip active" data-lang="en" onclick="setLanguage('en')">EN</button>
                 <button class="lang-chip" data-lang="fr" onclick="setLanguage('fr')">FR</button>
                 <button class="lang-chip" data-lang="ar" onclick="setLanguage('ar')">🇹🇳 تونس</button>
@@ -49,8 +49,8 @@
                 <p class="hero-subtitle">12 Years of Innovation (2014 – 2026) • UTOPIA Digital Archipelago</p>
             </div>
 
-            <!-- Central Holographic Voice Orb -->
-            <div class="hero-orb-wrap" onclick="startExperience()">
+            <!-- Central Holographic Voice Orb (Opens Language Selection Portal) -->
+            <div class="hero-orb-wrap" onclick="openLangModal()">
                 <div class="orb-container">
                     <div class="energy-ring ring-1"></div>
                     <div class="energy-ring ring-2"></div>
@@ -58,30 +58,72 @@
                     <div class="orb-core-glow"></div>
                     <div class="orb-core"></div>
                 </div>
-                <div class="pulse-hint">Tap to Enter Voice Experience</div>
+                <div class="pulse-hint">Tap to Choose Language & Enter</div>
             </div>
 
             <div class="idle-cta-group">
-                <button id="start-btn" class="primary-btn glow-btn" onclick="startExperience()">
-                    <span class="btn-icon">🎙️</span>
+                <button id="start-btn" class="primary-btn glow-btn" onclick="openLangModal()">
+                    <span class="btn-icon">✨</span>
                     <span class="btn-text">Explore Archipelago Islands</span>
-                </button>
-            </div>
-
-            <!-- Quick Language Select on Welcome -->
-            <div class="welcome-lang-row">
-                <button class="welcome-lang-btn" onclick="setLanguage('en'); startExperience();">
-                    <span class="w-flag">🇬🇧</span> English
-                </button>
-                <button class="welcome-lang-btn" onclick="setLanguage('fr'); startExperience();">
-                    <span class="w-flag">🇫🇷</span> Français
-                </button>
-                <button class="welcome-lang-btn" onclick="setLanguage('ar'); startExperience();">
-                    <span class="w-flag">🇹🇳</span> تونسي / Derja
                 </button>
             </div>
         </div>
     </section>
+
+    <!-- Language Selection Portal Modal (Fancy pop-out on orb tap) -->
+    <div id="lang-modal-overlay" class="lang-modal-overlay hidden">
+        <div class="lang-modal-backdrop" onclick="closeLangModal()"></div>
+        <div class="lang-modal-card">
+            <button class="modal-close-btn" onclick="closeLangModal()" title="Close">✕</button>
+            <div class="modal-glow-fx"></div>
+            
+            <div class="modal-header">
+                <div class="modal-kicker">UTOPIA 2026 • AI CONSTELLATION</div>
+                <h2 class="modal-title">Select Your Experience</h2>
+                <p class="modal-subtitle">اختر لغتك المفضلة لبدء الجولة التفاعلية مع الذكاء الاصطناعي</p>
+            </div>
+
+            <div class="lang-cards-grid">
+                <!-- English -->
+                <div class="lang-card" onclick="selectLanguageAndLaunch('en')">
+                    <div class="lang-card-flag">🇬🇧</div>
+                    <div class="lang-card-info">
+                        <h3 class="lang-card-name">English</h3>
+                        <p class="lang-card-desc">Conversational Guide • Global Voice</p>
+                        <span class="lang-card-tag">Puck AI Guide</span>
+                    </div>
+                    <div class="lang-card-arrow">➜</div>
+                </div>
+
+                <!-- Tunisian Derja -->
+                <div class="lang-card featured" onclick="selectLanguageAndLaunch('ar')">
+                    <div class="lang-card-ribbon">تونسي</div>
+                    <div class="lang-card-flag">🇹🇳</div>
+                    <div class="lang-card-info">
+                        <h3 class="lang-card-name">تونسي / Derja</h3>
+                        <p class="lang-card-desc">الدليل الذكي بالدارجة التونسية</p>
+                        <span class="lang-card-tag">صوت طبيعي دافئ</span>
+                    </div>
+                    <div class="lang-card-arrow">➜</div>
+                </div>
+
+                <!-- French -->
+                <div class="lang-card" onclick="selectLanguageAndLaunch('fr')">
+                    <div class="lang-card-flag">🇫🇷</div>
+                    <div class="lang-card-info">
+                        <h3 class="lang-card-name">Français</h3>
+                        <p class="lang-card-desc">Visite Vocale Guidée • Mode IA</p>
+                        <span class="lang-card-tag">Voix Naturelle Aoede</span>
+                    </div>
+                    <div class="lang-card-arrow">➜</div>
+                </div>
+            </div>
+
+            <div class="modal-footer-hint">
+                <span>✨ 14 Interactive Islands • Natural Conversational Audio • TSYP 14</span>
+            </div>
+        </div>
+    </div>
 
     <!-- SCREEN 2: Interactive Archipelago Map View (14 Connected Islands) -->
     <section id="map-screen" class="screen hidden">
@@ -198,9 +240,9 @@
                 <span class="btn-label">Prev</span>
             </button>
 
-            <button id="dock-mic-btn" class="dock-btn live-mic-btn" onclick="toggleMute()" title="Toggle Voice Mute">
+            <button id="dock-mic-btn" class="dock-btn live-mic-btn" onclick="toggleUserMic()" title="Mute/Unmute Visitor Microphone">
                 <span id="dock-mic-icon" class="mic-icon">🎙️</span>
-                <span id="dock-mic-label" class="btn-label">Live Voice</span>
+                <span id="dock-mic-label" class="btn-label">Mic Live</span>
             </button>
 
             <button id="dock-next-btn" class="dock-btn nav-btn" onclick="nextIsland()" title="Next Island">

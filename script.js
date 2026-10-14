@@ -119,11 +119,45 @@ function switchScreen(screenName) {
 function exitToIdle() {
     stopEverything();
     switchScreen('idle');
+    const topLangGroup = document.getElementById('top-lang-group');
+    if (topLangGroup) topLangGroup.classList.add('hidden-on-welcome');
+    closeLangModal();
     updateVoiceVisualizer('muted');
 }
 if (ui.exitBtn) ui.exitBtn.addEventListener('click', exitToIdle);
 
-// Language Management
+// Fancy Language Modal Controls
+function openLangModal() {
+    unlockAudioContext();
+    const modal = document.getElementById('lang-modal-overlay');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeLangModal() {
+    const modal = document.getElementById('lang-modal-overlay');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function selectLanguageAndLaunch(lang) {
+    unlockAudioContext();
+    currentLang = lang;
+
+    if (ui.langChips) {
+        ui.langChips.forEach(chip => {
+            if (chip.getAttribute('data-lang') === lang) chip.classList.add('active');
+            else chip.classList.remove('active');
+        });
+    }
+
+    const topLangGroup = document.getElementById('top-lang-group');
+    if (topLangGroup) topLangGroup.classList.remove('hidden-on-welcome');
+
+    closeLangModal();
+    await loadIslandsData();
+    openArchipelagoMap(true);
+}
+
+// Language Management (From Top Bar)
 async function setLanguage(lang) {
     if (lang === currentLang && islands.length > 0) return;
     currentLang = lang;
@@ -158,23 +192,29 @@ async function loadIslandsData() {
     }
 }
 
-// Start Experience from Welcome Screen
+// Start Experience (Triggers language selection modal)
 async function startExperience() {
-    unlockAudioContext();
-    if (!islands || islands.length === 0) {
-        await loadIslandsData();
-    }
-    // Launch directly into the interactive archipelago map!
-    openArchipelagoMap();
+    openLangModal();
 }
 
 // ==============================================================================
 // 1. INTERACTIVE ARCHIPELAGO MAP (14 CONNECTED NODES)
 // ==============================================================================
-function openArchipelagoMap() {
+function openArchipelagoMap(playWelcome = false) {
     stopEverything();
     switchScreen('map');
     renderArchipelagoMap();
+
+    if (playWelcome && islands && islands.length > 0) {
+        const coreIsland = islands.find(i => i.id === 'CORE') || islands[0];
+        if (coreIsland && coreIsland.audio) {
+            setTimeout(() => {
+                playAudio(coreIsland.audio, coreIsland.audio_format || 'wav', () => {
+                    if (!isUserMicMuted) startLiveListening();
+                });
+            }, 600);
+        }
+    }
 }
 
 function renderArchipelagoMap() {
@@ -182,7 +222,7 @@ function renderArchipelagoMap() {
 
     ui.nodesContainer.innerHTML = '';
     
-    // Draw SVG Constellation Connections
+    // Draw SVG Constellation Connections with staggered animations
     if (ui.svgCanvas) {
         ui.svgCanvas.innerHTML = '';
         const coreNode = islands.find(i => i.id === 'CORE') || islands[0];
@@ -195,6 +235,7 @@ function renderArchipelagoMap() {
                 line.setAttribute('x2', `${node.x}%`);
                 line.setAttribute('y2', `${node.y}%`);
                 line.classList.add('constellation-line');
+                line.style.animationDelay = `${idx * 60}ms`;
                 ui.svgCanvas.appendChild(line);
             }
             // Ring connection between neighbors
@@ -206,12 +247,13 @@ function renderArchipelagoMap() {
                 ringLine.setAttribute('x2', `${nextNode.x}%`);
                 ringLine.setAttribute('y2', `${nextNode.y}%`);
                 ringLine.classList.add('constellation-line');
+                ringLine.style.animationDelay = `${(idx + 1) * 75}ms`;
                 ui.svgCanvas.appendChild(ringLine);
             }
         });
     }
 
-    // Render 14 Node Cards
+    // Render 14 Node Cards with staggered pop-up animation
     islands.forEach((node, index) => {
         const card = document.createElement('div');
         card.classList.add('island-node');
@@ -220,6 +262,7 @@ function renderArchipelagoMap() {
 
         card.style.left = `${node.x}%`;
         card.style.top = `${node.y}%`;
+        card.style.animationDelay = `${index * 65}ms`;
 
         card.innerHTML = `
             <div class="node-icon-box">${node.icon || '📍'}</div>
@@ -392,8 +435,8 @@ if (SpeechRec) {
 
         recognition.onend = () => {
             isListening = false;
-            // Restart automatically if still unmuted and on island stage
-            if (!isMuted && !isSpeaking && !isThinking && screens.island.classList.contains('active')) {
+            // Restart automatically if user mic is unmuted and not currently speaking
+            if (!isUserMicMuted && !isSpeaking && !isThinking && screens.island.classList.contains('active')) {
                 startLiveListening();
             }
         };
@@ -402,9 +445,9 @@ if (SpeechRec) {
             console.warn("Speech recognition error:", e.error);
             isListening = false;
             if (e.error === 'not-allowed') {
-                isMuted = true;
+                isUserMicMuted = true;
                 updateMuteBtnUI();
-                updateVoiceVisualizer('muted');
+                if (!isSpeaking) updateVoiceVisualizer('muted');
             }
         };
     } catch(e) {
@@ -413,7 +456,7 @@ if (SpeechRec) {
 }
 
 function startLiveListening() {
-    if (isMuted || !recognition) return;
+    if (isUserMicMuted || !recognition) return;
     if (isSpeaking || isThinking) return;
 
     try { recognition.abort(); } catch(e){}
@@ -423,7 +466,7 @@ function startLiveListening() {
             recognition.lang = currentLang === 'ar' ? 'ar-TN' : (currentLang === 'fr' ? 'fr-FR' : 'en-US');
             recognition.start();
             isListening = true;
-            updateVoiceVisualizer('listening');
+            if (!isSpeaking) updateVoiceVisualizer('listening');
         } catch(err) {
             // Already started or busy
         }
@@ -436,29 +479,43 @@ function stopListening() {
     try { if (recognition) recognition.abort(); } catch(e){}
 }
 
-function toggleMute() {
-    isMuted = !isMuted;
+// User Microphone Mute Toggle (ONLY mutes visitor microphone, NEVER AI speaker output!)
+function toggleUserMic() {
+    isUserMicMuted = !isUserMicMuted;
     updateMuteBtnUI();
 
-    if (isMuted) {
-        stopEverything();
-        updateVoiceVisualizer('muted');
+    if (isUserMicMuted) {
+        // Stop user microphone from picking up ambient conference noise
+        stopListening();
+        if (!isSpeaking && !isThinking) {
+            updateVoiceVisualizer('muted');
+        }
     } else {
-        updateVoiceVisualizer('listening');
-        startLiveListening();
+        // Unmute user mic and resume active listening
+        if (!isSpeaking && !isThinking) {
+            updateVoiceVisualizer('listening');
+            startLiveListening();
+        }
     }
+}
+
+// Alias for backwards compatibility
+function toggleMute() {
+    toggleUserMic();
 }
 
 function updateMuteBtnUI() {
     if (!ui.dockMicBtn) return;
-    if (isMuted) {
-        ui.dockMicBtn.classList.add('muted');
+    if (isUserMicMuted) {
+        ui.dockMicBtn.classList.add('mic-muted');
         if (ui.dockMicIcon) ui.dockMicIcon.innerText = "🔇";
-        if (ui.dockMicLabel) ui.dockMicLabel.innerText = "Muted";
+        if (ui.dockMicLabel) ui.dockMicLabel.innerText = "Mic Muted";
+        ui.dockMicBtn.title = "Visitor Microphone Muted (Tap to speak)";
     } else {
-        ui.dockMicBtn.classList.remove('muted');
+        ui.dockMicBtn.classList.remove('mic-muted');
         if (ui.dockMicIcon) ui.dockMicIcon.innerText = "🎙️";
-        if (ui.dockMicLabel) ui.dockMicLabel.innerText = "Live Voice";
+        if (ui.dockMicLabel) ui.dockMicLabel.innerText = "Mic Live";
+        ui.dockMicBtn.title = "Visitor Microphone Live (Listening)";
     }
 }
 
@@ -498,21 +555,21 @@ async function askQuestion(queryText) {
         if (data.response) {
             if (ui.aiText) ui.aiText.innerText = data.response;
             if (data.audio) {
-                playAudio(data.audio, data.audio_format || 'mp3', () => {
-                    if (!isMuted) startLiveListening();
+                playAudio(data.audio, data.audio_format || 'wav', () => {
+                    if (!isUserMicMuted) startLiveListening();
                 });
             } else {
-                if (!isMuted) startLiveListening();
+                if (!isUserMicMuted) startLiveListening();
             }
         } else {
             if (ui.aiText) ui.aiText.innerText = "I'm listening, feel free to ask me anything!";
-            if (!isMuted) startLiveListening();
+            if (!isUserMicMuted) startLiveListening();
         }
     } catch(err) {
         console.error("Chat error:", err);
         isThinking = false;
         if (ui.aiText) ui.aiText.innerText = "Connection issue. Please ask again.";
-        if (!isMuted) startLiveListening();
+        if (!isUserMicMuted) startLiveListening();
     }
 }
 
@@ -529,21 +586,24 @@ function playAudio(audioB64, format, onEndCallback) {
     }
 
     try {
-        activeAudio = new Audio(`data:audio/${format};base64,${audioB64}`);
+        const mime = (format === 'wav') ? 'audio/wav' : 'audio/mp3';
+        activeAudio = new Audio(`data:${mime};base64,${audioB64}`);
         isSpeaking = true;
         updateVoiceVisualizer('speaking');
 
         activeAudio.play().catch(e => {
             console.log("Audio play prevented:", e);
             isSpeaking = false;
-            updateVoiceVisualizer('listening');
+            if (isUserMicMuted) updateVoiceVisualizer('muted');
+            else updateVoiceVisualizer('listening');
             if (onEndCallback) onEndCallback();
         });
 
         activeAudio.onended = () => {
             isSpeaking = false;
             activeAudio = null;
-            updateVoiceVisualizer('listening');
+            if (isUserMicMuted) updateVoiceVisualizer('muted');
+            else updateVoiceVisualizer('listening');
             if (onEndCallback) onEndCallback();
         };
 
@@ -551,12 +611,15 @@ function playAudio(audioB64, format, onEndCallback) {
             console.error("Audio error:", e);
             isSpeaking = false;
             activeAudio = null;
-            updateVoiceVisualizer('listening');
+            if (isUserMicMuted) updateVoiceVisualizer('muted');
+            else updateVoiceVisualizer('listening');
             if (onEndCallback) onEndCallback();
         };
     } catch(e) {
         console.error("Audio init error:", e);
         isSpeaking = false;
+        if (isUserMicMuted) updateVoiceVisualizer('muted');
+        else updateVoiceVisualizer('listening');
         if (onEndCallback) onEndCallback();
     }
 }
@@ -600,7 +663,7 @@ function updateVoiceVisualizer(state) {
         case 'muted':
             ui.voiceAura.classList.add('muted');
             if (ui.voiceIcon) ui.voiceIcon.innerText = "🔇";
-            if (ui.voiceLabel) ui.voiceLabel.innerText = "Voice Muted";
+            if (ui.voiceLabel) ui.voiceLabel.innerText = "Visitor Mic Muted (Press Mic Live to Speak)";
             break;
     }
 }
