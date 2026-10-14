@@ -227,31 +227,34 @@
             </div>
 
         </div>
-
-        <!-- Floating Navigation Dock (iPad Optimized, Zero Collision) -->
-        <nav class="floating-dock">
-            <button id="dock-map-btn" class="dock-btn map-btn" onclick="openArchipelagoMap()" title="View Archipelago Map">
-                <span class="btn-icon">🗺️</span>
-                <span class="btn-label">Island Map</span>
-            </button>
-
-            <button id="dock-prev-btn" class="dock-btn nav-btn" onclick="prevIsland()" title="Previous Island">
-                <span class="btn-arrow">❮</span>
-                <span class="btn-label">Prev</span>
-            </button>
-
-            <button id="dock-mic-btn" class="dock-btn live-mic-btn" onclick="toggleUserMic()" title="Mute/Unmute Visitor Microphone">
-                <span id="dock-mic-icon" class="mic-icon">🎙️</span>
-                <span id="dock-mic-label" class="btn-label">Mic Live</span>
-            </button>
-
-            <button id="dock-next-btn" class="dock-btn nav-btn" onclick="nextIsland()" title="Next Island">
-                <span class="btn-label">Next</span>
-                <span class="btn-arrow">❯</span>
-            </button>
-        </nav>
     </section>
 
-    <script src="script.js?v=4"></script>
+    <!-- Global Floating Navigation Dock (Persistent across Map & Islands) -->
+    <nav id="kiosk-dock" class="floating-dock hidden-on-welcome">
+        <button id="dock-map-btn" class="dock-btn map-btn" onclick="openArchipelagoMap()" title="View Archipelago Map">
+            <span class="btn-icon">🗺️</span>
+            <span class="btn-label">Island Map</span>
+        </button>
+
+        <button id="dock-prev-btn" class="dock-btn nav-btn" onclick="prevIsland()" title="Previous Island">
+            <span class="btn-arrow">❮</span>
+            <span class="btn-label">Prev</span>
+        </button>
+
+        <button id="dock-mic-btn" class="dock-btn live-mic-btn" onclick="toggleUserMic()" title="Mute/Unmute Your Microphone">
+            <span id="dock-mic-icon" class="mic-icon">🎙️</span>
+            <span id="dock-mic-label" class="btn-label">Mic Live</span>
+        </button>
+
+        <button id="dock-next-btn" class="dock-btn nav-btn" onclick="nextIsland()" title="Next Island">
+            <span class="btn-label">Next</span>
+            <span class="btn-arrow">❯</span>
+        </button>
+    </nav>
+
+    <!-- Dedicated HTML5 Audio Player (Zero Event Loss in WebKit/Safari/Chrome) -->
+    <audio id="kiosk-audio-player" preload="auto" playsinline style="display:none"></audio>
+
+    <script src="script.js?v=5"></script>
 </body>
 </html>

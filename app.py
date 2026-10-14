@@ -52,7 +52,7 @@ TOUR_DATA = {
         "x": 50, "y": 48, # Coordinates on Archipelago Map (% relative)
         "text_en": "Welcome to the IEEE ISSAT Sousse AI Sanctuary at TSYP 14! Tap any island to explore.",
         "text_fr": "Bienvenue au sanctuaire IA de l'IEEE ISSAT Sousse à TSYP 14 ! Touchez une île pour explorer.",
-        "text_ar": "عسلامة ومرحباً بيكم في كشك عيسات سوسة في تي إس واي بي 14! اختارو أي جزيرة بش تكتشفوها.",
+        "text_ar": "عسلامة ومرحباً بيكم في جناح IEEE ISSAT Sousse في TSYP 14! اختار أي جزيرة بش تكتشفها.",
         "images": ["assets/icon.png", "assets/slides/page_22_img_1.jpg"]
     },
     "FOUNDATION": {
@@ -63,7 +63,7 @@ TOUR_DATA = {
         "x": 28, "y": 28,
         "text_en": "Founded in 2014, we celebrate twelve years of transforming engineering students into world leaders.",
         "text_fr": "Fondée en 2014, notre branche célèbre douze ans d'excellence et de formation des leaders.",
-        "text_ar": "تأسس فرعنا في 2014، ونحتفلو بـ 12 سنة من تكوين وتأطير قادة المستقبل في الهندسة.",
+        "text_ar": "تأسس فرعنا في 2014، ونحتفلو بـ 12 سنة من التميز والريادة في تكوين وتأطير المهندسين.",
         "images": ["assets/slides/page_03_img_1.jpg", "assets/slides/page_04_img_1.jpg", "assets/slides/page_05_img_1.jpg"]
     },
     "CS": {
@@ -74,7 +74,7 @@ TOUR_DATA = {
         "x": 72, "y": 24,
         "text_en": "Our CS Chapter hosts the high-stakes Vecna Hackathon and leads the 24-hour global IEEEXtreme.",
         "text_fr": "Notre chapitre CS organise le célèbre hackathon Vecna et brille au concours mondial IEEEXtreme.",
-        "text_ar": "نادي كومبيوتر سوسايتي مشهور بهاكاثون فيكنا ومشاركاتنا السنوية في مسابقة آي إكستريم العالمية.",
+        "text_ar": "نادي CS مشهور بـ Vecna Hackathon ومشاركاتنا السنوية في مسابقة IEEEXtreme العالمية.",
         "images": ["assets/2.png", "assets/3.png"]
     },
     "RAS": {
@@ -85,7 +85,7 @@ TOUR_DATA = {
         "x": 84, "y": 42,
         "text_en": "RAS brings robotics to life, famous for our humanoid NAO robot winning Tunisian Innovation Days!",
         "text_fr": "La RAS donne vie aux robots, avec notre humanoïde NAO primé aux Journées de l'Innovation !",
-        "text_ar": "نادي راس يحول الأفكار لروبوتات حقيقية، كيما روبوت ناو اللي ربحنا بيه الجائزة الأولى وطنياً.",
+        "text_ar": "نادي RAS يحول الأفكار لروبوتات حقيقية، كيما روبوت NAO اللي ربحنا بيه الجائزة الأولى وطنياً.",
         "images": ["assets/slides/page_07_img_1.jpg", "assets/slides/page_08_img_1.jpg"]
     },
     "PES": {
@@ -96,7 +96,7 @@ TOUR_DATA = {
         "x": 78, "y": 66,
         "text_en": "PES champions clean energy, organizing the COPX summit and expeditions to renewable wind farms.",
         "text_fr": "La PES mène l'énergie durable, organisant le sommet COPX et des visites de parcs éoliens.",
-        "text_ar": "نادي بي إي إس يشجع الطاقة النظيفة، نظم مؤتمر كوب إكس وعمل زيارات ميدانية لمحطات الرياح.",
+        "text_ar": "نادي PES يشجع الطاقة النظيفة، نظم مؤتمر COPX وعمل زيارات ميدانية لمحطات الرياح.",
         "images": ["assets/slides/page_09_img_1.jpg", "assets/slides/page_10_img_1.jpg"]
     },
     "IAS": {
@@ -107,7 +107,7 @@ TOUR_DATA = {
         "x": 62, "y": 80,
         "text_en": "IAS bridges students to Industry 4.0 with direct technical expeditions to leaders like Valeo.",
         "text_fr": "L'IAS relie les étudiants à l'Industrie 4.0 avec des immersions chez des géants comme Valeo.",
-        "text_ar": "نادي آي إيه إس يربط الطلبة بسوق الشغل والأتمتة الذكية وزيارات ميدانية لشركات كبرى كيما فاليو.",
+        "text_ar": "نادي IAS يربط الطلبة بسوق الشغل و Industry 4.0 وزيارات ميدانية لشركات كبرى كيما Valeo.",
         "images": ["assets/slides/page_13_img_1.jpg", "assets/4.png"]
     },
     "WIE": {
@@ -118,7 +118,7 @@ TOUR_DATA = {
         "x": 38, "y": 80,
         "text_en": "WIE champions female leaders in STEM through #wielead and annual Pinktober cancer awareness campaigns.",
         "text_fr": "WIE valorise le leadership féminin en STEM avec #wielead et nos actions Octobre Rose.",
-        "text_ar": "نادي وي يدعم المهندسات بمبادرة وي ليد، ويساند رائدات الأعمال مع حملات بينكتوبر للتوعية.",
+        "text_ar": "نادي WIE يدعم المهندسات بمبادرة #wielead، ويساند رائدات الأعمال مع حملات Pinktober للتوعية.",
         "images": ["assets/slides/page_06_img_1.jpg", "assets/slides/page_06_img_2.jpg"]
     },
     "SIGHT": {
@@ -129,7 +129,7 @@ TOUR_DATA = {
         "x": 20, "y": 66,
         "text_en": "SIGHT uses technology for good, simplifying AI and training young scouts in hands-on robotics.",
         "text_fr": "SIGHT met la technologie au service de tous avec AI Gateway et la robotique pour les scouts.",
-        "text_ar": "مجموعة سايت توظف التكنولوجيا للمجتمع بورشات تبسيط الذكاء الاصطناعي وتدريب أطفال الكشافة.",
+        "text_ar": "مجموعة SIGHT توظف التكنولوجيا للمجتمع بورشات AI Gateway وتدريب أطفال الكشافة.",
         "images": ["assets/slides/page_24_img_1.jpg", "assets/15.png"]
     },
     "COMMUNITY": {
@@ -140,7 +140,7 @@ TOUR_DATA = {
         "x": 16, "y": 44,
         "text_en": "More than engineering, we are a family sharing integration carnivals, mountain hikes, and Iftars.",
         "text_fr": "Plus qu'une branche, une vraie famille unie par des randonnées, carnavals et iftars conviviaux.",
-        "text_ar": "أكثر من مجرد نادي، عيسات سوسة عائلة تجمعنا خرجات الهايكينغ، أيام الإدماج، ولمة رمضان السنوية.",
+        "text_ar": "أكثر من مجرد نادي، IEEE ISSAT Sousse عائلة تجمعنا خرجات الهايكينغ، أيام الإدماج، ولمة رمضان السنوية.",
         "images": ["assets/slides/page_12_img_1.jpg", "assets/slides/page_14_img_2.jpg"]
     },
     "ACHIEVEMENTS": {
@@ -151,7 +151,7 @@ TOUR_DATA = {
         "x": 36, "y": 14,
         "text_en": "Winners of the national TN 2056 Challenge, our branch is proud of twelve years of triumphs.",
         "text_fr": "Vainqueurs du grand défi TN 2056, nous célébrons douze années de victoires nationales !",
-        "text_ar": "فرعنا توج بالمرتبة الأولى في تحدي تونس 2056، وديما متألقين في كل المؤتمرات الوطنية.",
+        "text_ar": "فرعنا توج بالمرتبة الأولى في تحدي TN 2056، وديما متألقين في كل مؤتمرات TSYP.",
         "images": ["assets/slides/page_21_img_1.jpg", "assets/slides/page_18_img_1.jpg"]
     },
     "WALLE": {
@@ -162,7 +162,7 @@ TOUR_DATA = {
         "x": 64, "y": 12,
         "text_en": "The WALL-E Hackathon uses AI and data to solve industrial pollution challenges in Gabès.",
         "text_fr": "Le Hackathon WALL-E réunit l'IA et la data pour résoudre la crise écologique à Gabès.",
-        "text_ar": "هاكاثون وول إي يوظف الذكاء الاصطناعي والداتا لإيجاد حلول حقيقية لمشكلة التلوث في قابس.",
+        "text_ar": "هاكاثون WALL-E يوظف الـ AI والـ Data لإيجاد حلول بيئية لمشكلة التلوث في قابس.",
         "images": ["assets/hackathon.jpg", "assets/slides/page_22_img_1.jpg"]
     },
     "EXECUTIVE_BOARD": {
@@ -184,7 +184,7 @@ TOUR_DATA = {
         "x": 32, "y": 50,
         "text_en": "Connecting local engineering students in Sousse directly with IEEE Region 8 and global networks.",
         "text_fr": "Relier les étudiants de Sousse à la Région 8 et à la communauté mondiale de l'IEEE.",
-        "text_ar": "فرعنا يربط طلبة سوسة مباشرة بشبكة آي تريبل إي العالمية في أكثر من 190 دولة.",
+        "text_ar": "فرعنا يربط طلبة ISSAT Sousse مباشرة بشبكة IEEE العالمية في أكثر من 190 دولة.",
         "images": ["assets/slides/page_03_img_1.jpg", "assets/slides/page_04_img_1.jpg"]
     },
     "UTOPIA_2026": {
@@ -195,7 +195,7 @@ TOUR_DATA = {
         "x": 68, "y": 50,
         "text_en": "At TSYP 14 in 2026, we explore the frontiers of ethical AI and sustainable technology.",
         "text_fr": "Au congrès TSYP 14 en 2026, nous explorons les frontières de l'IA et des technologies durables.",
-        "text_ar": "في مؤتمر تي إس واي بي 14 سنة 2026، نرسمو مع بعضنا مستقبل الذكاء الاصطناعي والهندسة المستدامة!",
+        "text_ar": "في مؤتمر TSYP 14 سنة 2026، نرسمو مع بعضنا مستقبل الـ AI والهندسة المستدامة!",
         "images": ["assets/icon.png", "assets/slides/page_21_img_2.jpg"]
     }
 }
@@ -502,7 +502,8 @@ def chat_router():
         "en": "Answer in exactly 1 to 2 short, punchy sentences in natural conversational English. Never exceed 25 words.",
         "fr": "Répondez en 1 ou 2 phrases courtes et percutantes en français naturel. Moins de 25 mots au total.",
         "ar": """جاوب في جملة أو جملتين قصار برشا بتونسي طبيعي وواضح (تونسي قح ومفهوم). 
-أقصى حد 20 كلمة. اكتب أسماء النوادي بالعربي (آي تريبل إي، عيسات سوسة، تي إس واي بي 14، روبوت ناو)."""
+أقصى حد 20 كلمة. 
+مهم جداً: اكتب أسماء المنظمات والنوادي والمسابقات بالحروف اللاتينية والإنجليزية كما هي (مثال: IEEE, ISSAT Sousse, TSYP 14, CS, RAS, PES, IAS, WIE, SIGHT, AI, NAO, Hackathon) ولا تكتبها بحروف عربية إطلاقاً."""
     }.get(suffix, "Answer in 1 to 2 short conversational sentences.")
 
     answer_prompt = f"""
@@ -522,7 +523,8 @@ def chat_router():
     1. Answer the question accurately and enthusiastically.
     2. STRICT CONSTRAINT: Exactly 1 to 2 short sentences (UNDER 25 WORDS TOTAL). Perfect for spoken audio!
     3. Year is 2026. Event is TSYP 14. 12-Year Anniversary (2014-2026).
-    4. {lang_instruction}
+    4. ACRONYMS & PROPER NOUNS: ALL organization names, technical terms, and acronyms (IEEE, ISSAT Sousse, TSYP 14, CS, RAS, PES, IAS, WIE, SIGHT, AI, NAO, Hackathon, WALL-E) MUST strictly remain in English/Latin letters. Never transcribe them into Arabic letters.
+    5. {lang_instruction}
     """
 
     ai_reply_text = ""
@@ -541,7 +543,7 @@ def chat_router():
         fallbacks = {
             "en": "I'm your IEEE ISSAT Sousse AI Guide at TSYP 14! Ask me about any of our chapters.",
             "fr": "Je suis votre guide IA IEEE ISSAT Sousse à TSYP 14 ! Posez-moi vos questions.",
-            "ar": "أنا مرشدك الذكي في عيسات سوسة في تي إس واي بي 14! اسألني على أي نادي أو مشروع."
+            "ar": "أنا مرشدك الذكي في IEEE ISSAT Sousse في TSYP 14! اسألني على أي نادي أو مشروع."
         }
         ai_reply_text = fallbacks.get(suffix, fallbacks["en"])
 

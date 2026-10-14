@@ -1,6 +1,6 @@
 // ==============================================================================
 // TSYP 14 AI KIOSK - UTOPIA ARCHIPELAGO ENGINE (2026)
-// Built for iPad, Touch Displays & Voice-Only Live Interaction
+// Built for iPad, Touch Displays & Conversational Voice Interaction
 // ==============================================================================
 
 const BACKEND_URL = (window.location.origin && window.location.origin.startsWith('http')) 
@@ -25,19 +25,34 @@ function unlockAudioContext() {
 window.addEventListener('click', unlockAudioContext, { once: true });
 window.addEventListener('touchstart', unlockAudioContext, { once: true });
 
-// State
+// Explicit Microphone Permission Request (Ensures browser mic is active)
+async function requestMicPermission() {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach(track => track.stop());
+            return true;
+        } catch(e) {
+            console.warn("User microphone permission prompt:", e);
+            return false;
+        }
+    }
+    return false;
+}
+
+// Global Kiosk State
 let currentLang = 'en';
 let islands = [];
 let currentIslandIndex = 0;
-let isMuted = false;
-let isListening = false;
+let isUserMicMuted = false;
 let isSpeaking = false;
 let isThinking = false;
-let activeAudio = null;
+let isListening = false;
 let mediaTimer = null;
 let silenceTimer = null;
+let audioDurationSafetyTimer = null;
 
-// DOM Elements
+// DOM Elements Cache
 const screens = {
     idle: document.getElementById('idle-screen'),
     map: document.getElementById('map-screen'),
@@ -71,16 +86,23 @@ const ui = {
     userText: document.getElementById('user-speech-text'),
     chipsContainer: document.getElementById('island-chips'),
     
-    // Dock
+    // Global Floating Dock
+    dock: document.getElementById('kiosk-dock'),
     dockMapBtn: document.getElementById('dock-map-btn'),
     dockPrevBtn: document.getElementById('dock-prev-btn'),
     dockNextBtn: document.getElementById('dock-next-btn'),
     dockMicBtn: document.getElementById('dock-mic-btn'),
     dockMicIcon: document.getElementById('dock-mic-icon'),
-    dockMicLabel: document.getElementById('dock-mic-label')
+    dockMicLabel: document.getElementById('dock-mic-label'),
+    
+    // HTML5 Audio Player
+    audioPlayer: document.getElementById('kiosk-audio-player')
 };
 
-// Cosmic Background Starfall
+// ==============================================================================
+// 1. VISUAL ATMOSPHERE & SCREEN ROUTING
+// ==============================================================================
+
 function initCosmicStars() {
     const starContainer = document.getElementById('starfall');
     if (!starContainer) return;
@@ -101,7 +123,6 @@ function initCosmicStars() {
 }
 initCosmicStars();
 
-// Screen Transitions
 function switchScreen(screenName) {
     Object.values(screens).forEach(s => {
         if (s) {
@@ -113,9 +134,17 @@ function switchScreen(screenName) {
         screens[screenName].classList.remove('hidden');
         screens[screenName].classList.add('active');
     }
+
+    // Floating Dock visibility
+    if (ui.dock) {
+        if (screenName === 'idle') {
+            ui.dock.classList.add('hidden-on-welcome');
+        } else {
+            ui.dock.classList.remove('hidden-on-welcome');
+        }
+    }
 }
 
-// Exit to Welcome
 function exitToIdle() {
     stopEverything();
     switchScreen('idle');
@@ -126,7 +155,10 @@ function exitToIdle() {
 }
 if (ui.exitBtn) ui.exitBtn.addEventListener('click', exitToIdle);
 
-// Fancy Language Modal Controls
+// ==============================================================================
+// 2. LANGUAGE MANAGEMENT & ONBOARDING
+// ==============================================================================
+
 function openLangModal() {
     unlockAudioContext();
     const modal = document.getElementById('lang-modal-overlay');
@@ -138,8 +170,15 @@ function closeLangModal() {
     if (modal) modal.classList.add('hidden');
 }
 
+async function startExperience() {
+    unlockAudioContext();
+    requestMicPermission();
+    openLangModal();
+}
+
 async function selectLanguageAndLaunch(lang) {
     unlockAudioContext();
+    requestMicPermission();
     currentLang = lang;
 
     if (ui.langChips) {
@@ -157,7 +196,6 @@ async function selectLanguageAndLaunch(lang) {
     openArchipelagoMap(true);
 }
 
-// Language Management (From Top Bar)
 async function setLanguage(lang) {
     if (lang === currentLang && islands.length > 0) return;
     currentLang = lang;
@@ -176,7 +214,6 @@ async function setLanguage(lang) {
     }
 }
 
-// Load 14 Islands from API
 async function loadIslandsData() {
     try {
         const res = await fetch(`${BACKEND_URL}/get_islands`, {
@@ -192,14 +229,10 @@ async function loadIslandsData() {
     }
 }
 
-// Start Experience (Triggers language selection modal)
-async function startExperience() {
-    openLangModal();
-}
+// ==============================================================================
+// 3. ARCHIPELAGO MAP (14 CONNECTED NODES)
+// ==============================================================================
 
-// ==============================================================================
-// 1. INTERACTIVE ARCHIPELAGO MAP (14 CONNECTED NODES)
-// ==============================================================================
 function openArchipelagoMap(playWelcome = false) {
     stopEverything();
     switchScreen('map');
@@ -210,7 +243,7 @@ function openArchipelagoMap(playWelcome = false) {
         if (coreIsland && coreIsland.audio) {
             setTimeout(() => {
                 playAudio(coreIsland.audio, coreIsland.audio_format || 'wav', () => {
-                    if (!isUserMicMuted) startLiveListening();
+                    transitionToUserTurn();
                 });
             }, 600);
         }
@@ -222,7 +255,7 @@ function renderArchipelagoMap() {
 
     ui.nodesContainer.innerHTML = '';
     
-    // Draw SVG Constellation Connections with staggered animations
+    // Draw SVG Constellation Connections
     if (ui.svgCanvas) {
         ui.svgCanvas.innerHTML = '';
         const coreNode = islands.find(i => i.id === 'CORE') || islands[0];
@@ -238,7 +271,6 @@ function renderArchipelagoMap() {
                 line.style.animationDelay = `${idx * 60}ms`;
                 ui.svgCanvas.appendChild(line);
             }
-            // Ring connection between neighbors
             if (idx > 0 && idx < islands.length - 1) {
                 const nextNode = islands[idx + 1];
                 const ringLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -253,7 +285,7 @@ function renderArchipelagoMap() {
         });
     }
 
-    // Render 14 Node Cards with staggered pop-up animation
+    // Render 14 Node Cards
     islands.forEach((node, index) => {
         const card = document.createElement('div');
         card.classList.add('island-node');
@@ -281,8 +313,9 @@ function renderArchipelagoMap() {
 }
 
 // ==============================================================================
-// 2. ISLAND STAGE VIEW & MEDIA SHOWCASE
+// 4. ISLAND STAGE VIEW & SHOWCASE
 // ==============================================================================
+
 function dockToIsland(index) {
     if (!islands || index < 0 || index >= islands.length) return;
     
@@ -292,30 +325,30 @@ function dockToIsland(index) {
 
     switchScreen('island');
 
-    // Metadata
+    // Metadata & Labels
     if (ui.badge) ui.badge.innerText = island.badge || "NODE";
     if (ui.indexTag) ui.indexTag.innerText = `${String(index + 1).padStart(2, '0')} / ${String(islands.length).padStart(2, '0')}`;
     if (ui.title) ui.title.innerText = `${island.icon || ''} ${island.title}`;
     if (ui.subtitle) ui.subtitle.innerText = island.subtitle || "";
     if (ui.aiText) ui.aiText.innerText = island.text || "Welcome to this island!";
 
-    // Hide user bubble initially
+    // Reset user speech bubble
     if (ui.userBubble) ui.userBubble.classList.add('hidden');
+    if (ui.userText) ui.userText.innerText = "";
 
-    // Update tailored topic prompt chips
+    // Topic Prompt Chips
     renderIslandPromptChips(island);
 
     // Media Slideshow
     startMediaShowcase(island.images);
 
-    // Play 3-5s Audio Intro
+    // Play 3-5s Audio Intro, then smoothly transition to visitor's turn
     if (island.audio) {
-        playAudio(island.audio, island.audio_format || 'mp3', () => {
-            // After intro completes, automatically enter Live Listening
-            if (!isMuted) startLiveListening();
+        playAudio(island.audio, island.audio_format || 'wav', () => {
+            transitionToUserTurn();
         });
     } else {
-        if (!isMuted) startLiveListening();
+        transitionToUserTurn();
     }
 }
 
@@ -373,11 +406,25 @@ function renderIslandPromptChips(island) {
     if (!ui.chipsContainer) return;
     ui.chipsContainer.innerHTML = '';
 
-    const questions = [
-        `Tell me about ${island.title}`,
-        "What are the major achievements?",
-        "How can I join this team?"
-    ];
+    const questionsByLang = {
+        en: [
+            `Tell me more about ${island.title}`,
+            "What are your biggest achievements?",
+            "How can I join this team?"
+        ],
+        fr: [
+            `Parlez-moi de ${island.title}`,
+            "Quels sont vos plus grands succès ?",
+            "Comment rejoindre l'équipe ?"
+        ],
+        ar: [
+            `احكيلي أكثر على ${island.title}`,
+            "شنوة أهم الإنجازات والجوائز؟",
+            "كيفاش نجم نشارك معكم؟"
+        ]
+    };
+
+    const questions = questionsByLang[currentLang] || questionsByLang.en;
 
     questions.forEach(q => {
         const btn = document.createElement('button');
@@ -389,25 +436,227 @@ function renderIslandPromptChips(island) {
 }
 
 // ==============================================================================
-// 3. CONVERSATIONAL VOICE ENGINE (GEMINI LIVE / CHATGPT VOICE UX)
-// Always-Listening + Live Mute Toggle + Instant Barge-in
+// 5. AUDIO PLAYBACK & SEAMLESS TURN-TAKING ENGINE
 // ==============================================================================
+
+function b64toBlob(b64Data, contentType) {
+    const byteCharacters = atob(b64Data);
+    const byteArrays = [];
+    const sliceSize = 512;
+    for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+        const slice = byteCharacters.slice(offset, offset + sliceSize);
+        const byteNumbers = new Array(slice.length);
+        for (let i = 0; i < slice.length; i++) {
+            byteNumbers[i] = slice.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        byteArrays.push(byteArray);
+    }
+    return new Blob(byteArrays, { type: contentType });
+}
+
+function playAudio(audioB64, format, onEndCallback) {
+    clearTimeout(audioDurationSafetyTimer);
+    
+    // Stop live microphone while AI speaks to eliminate echo
+    stopListening();
+    
+    if (!audioB64) {
+        transitionToUserTurn(onEndCallback);
+        return;
+    }
+
+    const audioPlayer = ui.audioPlayer || document.getElementById('kiosk-audio-player');
+    if (!audioPlayer) {
+        transitionToUserTurn(onEndCallback);
+        return;
+    }
+
+    try {
+        const mime = (format === 'wav') ? 'audio/wav' : 'audio/mp3';
+        const blob = b64toBlob(audioB64, mime);
+        const blobUrl = URL.createObjectURL(blob);
+        
+        if (audioPlayer._blobUrl) {
+            URL.revokeObjectURL(audioPlayer._blobUrl);
+        }
+        audioPlayer._blobUrl = blobUrl;
+        audioPlayer.src = blobUrl;
+
+        isSpeaking = true;
+        updateVoiceVisualizer('speaking');
+
+        let handled = false;
+        const cleanupAndFinish = () => {
+            if (handled) return;
+            handled = true;
+            clearTimeout(audioDurationSafetyTimer);
+            audioPlayer.onended = null;
+            audioPlayer.onerror = null;
+            transitionToUserTurn(onEndCallback);
+        };
+
+        audioPlayer.onended = cleanupAndFinish;
+        audioPlayer.onerror = (e) => {
+            console.warn("Audio playback error event:", e);
+            cleanupAndFinish();
+        };
+
+        // Guaranteed duration safety timeout
+        const estimatedSeconds = (format === 'wav') 
+            ? Math.max(2.5, (blob.size - 44) / 48000)
+            : Math.max(2.5, blob.size / 16000);
+        const safetyTimeoutMs = Math.round((estimatedSeconds * 1000) + 1200);
+
+        audioDurationSafetyTimer = setTimeout(() => {
+            cleanupAndFinish();
+        }, safetyTimeoutMs);
+
+        audioPlayer.onloadedmetadata = () => {
+            if (audioPlayer.duration && isFinite(audioPlayer.duration)) {
+                clearTimeout(audioDurationSafetyTimer);
+                const exactTimeoutMs = Math.round((audioPlayer.duration * 1000) + 800);
+                audioDurationSafetyTimer = setTimeout(() => {
+                    cleanupAndFinish();
+                }, exactTimeoutMs);
+            }
+        };
+
+        audioPlayer.play().catch(err => {
+            console.warn("Audio play blocked by browser policy:", err);
+            cleanupAndFinish();
+        });
+
+    } catch(err) {
+        console.error("Audio playback exception:", err);
+        transitionToUserTurn(onEndCallback);
+    }
+}
+
+// Guaranteed hand-off to the visitor
+function transitionToUserTurn(callback) {
+    clearTimeout(audioDurationSafetyTimer);
+    const audioPlayer = ui.audioPlayer || document.getElementById('kiosk-audio-player');
+    if (audioPlayer) {
+        audioPlayer.pause();
+    }
+    isSpeaking = false;
+    
+    if (callback && typeof callback === 'function') {
+        callback();
+    }
+
+    if (isUserMicMuted) {
+        updateVoiceVisualizer('muted');
+    } else {
+        updateVoiceVisualizer('user-turn');
+        if (screens.island.classList.contains('active') || screens.map.classList.contains('active')) {
+            startLiveListening();
+        }
+    }
+}
+
+// Visualizer State Manager
+function updateVoiceVisualizer(state) {
+    if (!ui.voiceAura) return;
+    ui.voiceAura.classList.remove('listening', 'user-turn', 'user-speaking', 'speaking', 'thinking', 'muted');
+    if (ui.soundwave) ui.soundwave.classList.remove('active');
+
+    const labels = {
+        'speaking': {
+            en: 'AI Guide Speaking...',
+            fr: 'Le guide IA parle...',
+            ar: 'دليل TSYP يتحدث...'
+        },
+        'user-turn': {
+            en: 'Your Turn • Speak anytime',
+            fr: 'À vous • Posez votre question',
+            ar: 'تفضل • اسألني صوتياً'
+        },
+        'user-speaking': {
+            en: 'Hearing You...',
+            fr: 'Je vous écoute...',
+            ar: 'أسمعك...'
+        },
+        'thinking': {
+            en: 'AI Thinking...',
+            fr: 'En réflexion...',
+            ar: 'جاري التفكير...'
+        },
+        'muted': {
+            en: 'Visitor Mic Muted (Tap Mic Live)',
+            fr: 'Micro désactivé (Tapez Mic Live)',
+            ar: 'تم كتم الميكروفون (اضغط لتتكلم)'
+        }
+    };
+
+    const text = (labels[state] && labels[state][currentLang]) || labels[state]?.en || '';
+
+    switch(state) {
+        case 'speaking':
+            ui.voiceAura.classList.add('speaking');
+            if (ui.voiceIcon) ui.voiceIcon.innerText = "🔊";
+            if (ui.voiceLabel) ui.voiceLabel.innerText = text;
+            if (ui.soundwave) ui.soundwave.classList.add('active');
+            break;
+
+        case 'user-turn':
+            ui.voiceAura.classList.add('user-turn');
+            if (ui.voiceIcon) ui.voiceIcon.innerText = "🎙️";
+            if (ui.voiceLabel) ui.voiceLabel.innerText = text;
+            break;
+
+        case 'user-speaking':
+            ui.voiceAura.classList.add('user-speaking');
+            if (ui.voiceIcon) ui.voiceIcon.innerText = "🗣️";
+            if (ui.voiceLabel) ui.voiceLabel.innerText = text;
+            if (ui.soundwave) ui.soundwave.classList.add('active');
+            break;
+
+        case 'thinking':
+            ui.voiceAura.classList.add('thinking');
+            if (ui.voiceIcon) ui.voiceIcon.innerText = "⚡";
+            if (ui.voiceLabel) ui.voiceLabel.innerText = text;
+            break;
+
+        case 'muted':
+            ui.voiceAura.classList.add('muted');
+            if (ui.voiceIcon) ui.voiceIcon.innerText = "🔇";
+            if (ui.voiceLabel) ui.voiceLabel.innerText = text;
+            break;
+    }
+}
+
+// ==============================================================================
+// 6. CONVERSATIONAL SPEECH RECOGNITION (WEB SPEECH API)
+// ==============================================================================
+
 const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
 
-if (SpeechRec) {
+function initSpeechRecognition() {
+    if (!SpeechRec) {
+        console.warn("Web Speech API not supported on this browser.");
+        return;
+    }
     try {
         recognition = new SpeechRec();
         recognition.continuous = true;
         recognition.interimResults = true;
         
+        recognition.onstart = () => {
+            isListening = true;
+            if (!isSpeaking && !isThinking && !isUserMicMuted) {
+                updateVoiceVisualizer('user-turn');
+            }
+        };
+
         recognition.onresult = (event) => {
             clearTimeout(silenceTimer);
             
-            // Dynamic Barge-In: if AI was speaking, halt it immediately!
-            if (activeAudio) {
-                activeAudio.pause();
-                activeAudio = null;
+            // Barge-in: if AI was speaking, halt immediately
+            if (isSpeaking) {
+                transitionToUserTurn();
             }
 
             let interim = '';
@@ -419,56 +668,75 @@ if (SpeechRec) {
 
             const speechText = (final || interim).trim();
             if (speechText) {
+                // Immediate reactive transition to User Speaking
+                updateVoiceVisualizer('user-speaking');
                 if (ui.userBubble) ui.userBubble.classList.remove('hidden');
                 if (ui.userText) ui.userText.innerText = speechText;
-                updateVoiceVisualizer('listening');
 
-                // 1.4s silence pause detector dispatches to AI
+                // 1.1s silence detection triggers question submission
                 silenceTimer = setTimeout(() => {
                     if (speechText.length > 0) {
-                        try { recognition.abort(); } catch(e){}
+                        stopListening();
                         askQuestion(speechText);
                     }
-                }, 1400);
+                }, 1100);
             }
         };
 
         recognition.onend = () => {
             isListening = false;
-            // Restart automatically if user mic is unmuted and not currently speaking
-            if (!isUserMicMuted && !isSpeaking && !isThinking && screens.island.classList.contains('active')) {
-                startLiveListening();
+            // Restart automatically if user mic is unmuted and not speaking or thinking
+            if (!isUserMicMuted && !isSpeaking && !isThinking && screens.island && screens.island.classList.contains('active')) {
+                setTimeout(() => {
+                    if (!isUserMicMuted && !isSpeaking && !isThinking) {
+                        startLiveListening();
+                    }
+                }, 150);
             }
         };
 
         recognition.onerror = (e) => {
             console.warn("Speech recognition error:", e.error);
-            isListening = false;
             if (e.error === 'not-allowed') {
                 isUserMicMuted = true;
                 updateMuteBtnUI();
-                if (!isSpeaking) updateVoiceVisualizer('muted');
+                if (!isSpeaking && !isThinking) updateVoiceVisualizer('muted');
             }
+            // 'no-speech' or 'aborted' are non-fatal, onend will safely cycle
         };
     } catch(e) {
         console.warn("Speech API init failed:", e);
     }
 }
+initSpeechRecognition();
 
 function startLiveListening() {
-    if (isUserMicMuted || !recognition) return;
+    if (isUserMicMuted) return;
     if (isSpeaking || isThinking) return;
+    
+    if (!recognition) {
+        initSpeechRecognition();
+        if (!recognition) return;
+    }
 
     try { recognition.abort(); } catch(e){}
 
     setTimeout(() => {
+        if (isSpeaking || isThinking || isUserMicMuted) return;
         try {
-            recognition.lang = currentLang === 'ar' ? 'ar-TN' : (currentLang === 'fr' ? 'fr-FR' : 'en-US');
+            const langMap = {
+                'ar': 'ar-TN',
+                'fr': 'fr-FR',
+                'en': 'en-US'
+            };
+            recognition.lang = langMap[currentLang] || 'en-US';
             recognition.start();
             isListening = true;
-            if (!isSpeaking) updateVoiceVisualizer('listening');
+            if (!isSpeaking && !isThinking) {
+                updateVoiceVisualizer('user-turn');
+            }
         } catch(err) {
-            // Already started or busy
+            // Already active or starting
         }
     }, 60);
 }
@@ -476,30 +744,30 @@ function startLiveListening() {
 function stopListening() {
     isListening = false;
     clearTimeout(silenceTimer);
-    try { if (recognition) recognition.abort(); } catch(e){}
+    try { 
+        if (recognition) recognition.abort(); 
+    } catch(e){}
 }
 
 // User Microphone Mute Toggle (ONLY mutes visitor microphone, NEVER AI speaker output!)
-function toggleUserMic() {
+async function toggleUserMic() {
     isUserMicMuted = !isUserMicMuted;
     updateMuteBtnUI();
 
     if (isUserMicMuted) {
-        // Stop user microphone from picking up ambient conference noise
         stopListening();
         if (!isSpeaking && !isThinking) {
             updateVoiceVisualizer('muted');
         }
     } else {
-        // Unmute user mic and resume active listening
+        await requestMicPermission();
         if (!isSpeaking && !isThinking) {
-            updateVoiceVisualizer('listening');
+            updateVoiceVisualizer('user-turn');
             startLiveListening();
         }
     }
 }
 
-// Alias for backwards compatibility
 function toggleMute() {
     toggleUserMic();
 }
@@ -519,15 +787,17 @@ function updateMuteBtnUI() {
     }
 }
 
-// Master Ask Question Handler
+// ==============================================================================
+// 7. QUESTION DISPATCH & AI RESPONSE HANDLING
+// ==============================================================================
+
 async function askQuestion(queryText) {
     if (!queryText || !queryText.trim()) return;
     queryText = queryText.trim();
 
     stopListening();
-    if (activeAudio) {
-        activeAudio.pause();
-        activeAudio = null;
+    if (isSpeaking) {
+        transitionToUserTurn();
     }
 
     if (ui.userBubble) ui.userBubble.classList.remove('hidden');
@@ -535,7 +805,13 @@ async function askQuestion(queryText) {
 
     isThinking = true;
     updateVoiceVisualizer('thinking');
-    if (ui.aiText) ui.aiText.innerText = "Thinking...";
+
+    const thinkingLabels = {
+        en: "Thinking...",
+        fr: "En réflexion...",
+        ar: "جاري التفكير..."
+    };
+    if (ui.aiText) ui.aiText.innerText = thinkingLabels[currentLang] || "Thinking...";
 
     try {
         const currentIsland = islands[currentIslandIndex] || {};
@@ -556,129 +832,50 @@ async function askQuestion(queryText) {
             if (ui.aiText) ui.aiText.innerText = data.response;
             if (data.audio) {
                 playAudio(data.audio, data.audio_format || 'wav', () => {
-                    if (!isUserMicMuted) startLiveListening();
+                    transitionToUserTurn();
                 });
             } else {
-                if (!isUserMicMuted) startLiveListening();
+                transitionToUserTurn();
             }
         } else {
-            if (ui.aiText) ui.aiText.innerText = "I'm listening, feel free to ask me anything!";
-            if (!isUserMicMuted) startLiveListening();
+            const fallbackText = {
+                en: "I'm listening! Feel free to ask me anything about our branch.",
+                fr: "Je vous écoute ! Posez-moi vos questions sur notre branche.",
+                ar: "أنا نسمع فيك! تفضل اسألني أي حاجة على فرعنا."
+            };
+            if (ui.aiText) ui.aiText.innerText = fallbackText[currentLang] || fallbackText.en;
+            transitionToUserTurn();
         }
     } catch(err) {
         console.error("Chat error:", err);
         isThinking = false;
-        if (ui.aiText) ui.aiText.innerText = "Connection issue. Please ask again.";
-        if (!isUserMicMuted) startLiveListening();
-    }
-}
-
-// Audio Playback
-function playAudio(audioB64, format, onEndCallback) {
-    if (!audioB64) {
-        if (onEndCallback) onEndCallback();
-        return;
-    }
-
-    if (activeAudio) {
-        activeAudio.pause();
-        activeAudio = null;
-    }
-
-    try {
-        const mime = (format === 'wav') ? 'audio/wav' : 'audio/mp3';
-        activeAudio = new Audio(`data:${mime};base64,${audioB64}`);
-        isSpeaking = true;
-        updateVoiceVisualizer('speaking');
-
-        activeAudio.play().catch(e => {
-            console.log("Audio play prevented:", e);
-            isSpeaking = false;
-            if (isUserMicMuted) updateVoiceVisualizer('muted');
-            else updateVoiceVisualizer('listening');
-            if (onEndCallback) onEndCallback();
-        });
-
-        activeAudio.onended = () => {
-            isSpeaking = false;
-            activeAudio = null;
-            if (isUserMicMuted) updateVoiceVisualizer('muted');
-            else updateVoiceVisualizer('listening');
-            if (onEndCallback) onEndCallback();
-        };
-
-        activeAudio.onerror = (e) => {
-            console.error("Audio error:", e);
-            isSpeaking = false;
-            activeAudio = null;
-            if (isUserMicMuted) updateVoiceVisualizer('muted');
-            else updateVoiceVisualizer('listening');
-            if (onEndCallback) onEndCallback();
-        };
-    } catch(e) {
-        console.error("Audio init error:", e);
-        isSpeaking = false;
-        if (isUserMicMuted) updateVoiceVisualizer('muted');
-        else updateVoiceVisualizer('listening');
-        if (onEndCallback) onEndCallback();
+        if (ui.aiText) ui.aiText.innerText = (currentLang === 'ar') 
+            ? "حدث خطأ في الاتصال، تفضل عاود اسألني." 
+            : "Connection error. Please ask again.";
+        transitionToUserTurn();
     }
 }
 
 function stopEverything() {
     stopListening();
-    if (activeAudio) {
-        activeAudio.pause();
-        activeAudio = null;
-    }
-    clearInterval(mediaTimer);
+    clearTimeout(audioDurationSafetyTimer);
     clearTimeout(silenceTimer);
+    clearInterval(mediaTimer);
+    const audioPlayer = ui.audioPlayer || document.getElementById('kiosk-audio-player');
+    if (audioPlayer) {
+        audioPlayer.pause();
+    }
     isSpeaking = false;
     isThinking = false;
 }
 
-// Visualizer State Manager
-function updateVoiceVisualizer(state) {
-    if (!ui.voiceAura) return;
-    ui.voiceAura.classList.remove('listening', 'speaking', 'thinking', 'muted');
-    if (ui.soundwave) ui.soundwave.classList.remove('active');
-
-    switch(state) {
-        case 'listening':
-            ui.voiceAura.classList.add('listening');
-            if (ui.voiceIcon) ui.voiceIcon.innerText = "🎙️";
-            if (ui.voiceLabel) ui.voiceLabel.innerText = "Live • Listening...";
-            if (ui.soundwave) ui.soundwave.classList.add('active');
-            break;
-        case 'speaking':
-            ui.voiceAura.classList.add('speaking');
-            if (ui.voiceIcon) ui.voiceIcon.innerText = "🔊";
-            if (ui.voiceLabel) ui.voiceLabel.innerText = "AI Guide Speaking...";
-            if (ui.soundwave) ui.soundwave.classList.add('active');
-            break;
-        case 'thinking':
-            ui.voiceAura.classList.add('thinking');
-            if (ui.voiceIcon) ui.voiceIcon.innerText = "⚡";
-            if (ui.voiceLabel) ui.voiceLabel.innerText = "Thinking...";
-            break;
-        case 'muted':
-            ui.voiceAura.classList.add('muted');
-            if (ui.voiceIcon) ui.voiceIcon.innerText = "🔇";
-            if (ui.voiceLabel) ui.voiceLabel.innerText = "Visitor Mic Muted (Press Mic Live to Speak)";
-            break;
-    }
-}
-
-// Keyboard shortcuts for Kiosk
+// Keyboard shortcuts for Kiosk test
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') exitToIdle();
     if (e.key === 'ArrowRight') nextIsland();
     if (e.key === 'ArrowLeft') prevIsland();
-    if (e.key === 'm' || e.key === 'M') toggleMute();
-    if (e.key === ' ') {
-        e.preventDefault();
-        toggleMute();
-    }
+    if (e.key === 'm' || e.key === 'M') toggleUserMic();
 });
 
-// Auto initialize on load
+// Auto initialize island metadata on load
 loadIslandsData();
