@@ -1,23 +1,24 @@
-// ================= CONFIGURATION =================
-const BACKEND_URL = "http://127.0.0.1:5000";
+// ==============================================================================
+// TSYP 13 AI KIOSK - CORE FRONTEND ENGINE
+// ==============================================================================
 
-// ================= STATE =================
-let currentChapterId = "GENERAL"; 
-let tourData = [];      
-let currentSlideIndex = -1; 
+const BACKEND_URL = window.location.origin;
+
+// State
+let currentChapterId = "GREETING";
+let tourData = [];
+let currentSlideIndex = 0;
 let currentLang = 'en';
 
-let audioObj = null;    
+let audioObj = null;
 let imageInterval = null;
 let imageFadeTimeout = null;
 
-let isTourMode = false; 
+let isTourMode = false;
+let isTransactionActive = false;
+let silenceTimer = null;
 
-// THE SAFETY LOCKS
-let isTransactionActive = false; // TRUE only when sending data to Python
-let silenceTimer = null;         // Timer to detect when user stops speaking
-
-// ================= DOM ELEMENTS =================
+// DOM Elements
 const screens = {
     idle: document.getElementById('idle-screen'),
     lang: document.getElementById('language-screen'),
@@ -27,56 +28,93 @@ const screens = {
 const ui = {
     presentationArea: document.getElementById('presentation-area'),
     img: document.getElementById('presentation-img'),
+    slideTitle: document.getElementById('slide-title'),
+    slideSubtitle: document.getElementById('slide-subtitle'),
+    chapterTag: document.getElementById('slide-chapter-tag'),
+    imageIndicators: document.getElementById('image-indicators'),
+    
     orb: document.getElementById('galaxy-view'),
-    orbCore: document.querySelector('.orb-core'),
-    aiSub: document.getElementById('ai-subtitles'),
-    userSub: document.getElementById('user-subtitles'),
-    nav: document.getElementById('nav-controls'),
+    orbStatusText: document.getElementById('orb-status-text'),
+    
+    aiSubText: document.getElementById('ai-sub-text'),
+    userSubText: document.getElementById('user-sub-text'),
+    userSubContainer: document.getElementById('user-subtitles'),
+    audioWave: document.getElementById('audio-wave'),
     
     btnNext: document.getElementById('next-btn'),
     btnPrev: document.getElementById('prev-btn'),
     btnAsk: document.getElementById('ask-btn'),
-    btnExit: document.getElementById('exit-btn')
+    askBtnText: document.getElementById('ask-btn-text'),
+    tourToggleBtn: document.getElementById('tour-toggle-btn'),
+    tourToggleLabel: document.getElementById('tour-toggle-label'),
+    tourToggleIcon: document.getElementById('tour-toggle-icon'),
+    exitBtn: document.getElementById('exit-btn'),
+    
+    langChips: document.querySelectorAll('.lang-chip')
 };
 
-// ================= 1. VISUALS =================
+// ================= 1. COSMIC STARFALL VISUALS =================
 function initStarfall() {
     const container = document.getElementById('starfall');
-    container.innerHTML = ''; 
-    for (let i = 0; i < 60; i++) {
+    if (!container) return;
+    container.innerHTML = '';
+    const starCount = 70;
+    
+    for (let i = 0; i < starCount; i++) {
         const star = document.createElement('div');
         star.classList.add('star');
         star.style.left = `${Math.random() * 100}%`;
-        star.style.width = `${Math.random() * 3 + 1}px`; 
-        star.style.height = star.style.width;
-        star.style.opacity = Math.random();
-        star.style.animationDuration = `${3 + Math.random() * 5}s`;
+        const size = Math.random() * 3 + 1;
+        star.style.width = `${size}px`;
+        star.style.height = `${size}px`;
+        star.style.opacity = Math.random() * 0.8 + 0.2;
+        star.style.animationDuration = `${4 + Math.random() * 6}s`;
+        star.style.animationDelay = `${Math.random() * 5}s`;
         container.appendChild(star);
     }
 }
 initStarfall();
 
-document.getElementById('start-btn').addEventListener('click', () => switchScreen('lang'));
-
+// Screen Management
 function switchScreen(name) {
     Object.values(screens).forEach(s => {
         s.classList.add('hidden');
         s.classList.remove('active');
     });
-    screens[name].classList.remove('hidden');
-    screens[name].classList.add('active');
+    if (screens[name]) {
+        screens[name].classList.remove('hidden');
+        screens[name].classList.add('active');
+    }
 }
 
-// ================= 2. SESSION START =================
+document.getElementById('start-btn').addEventListener('click', () => switchScreen('lang'));
+function goToIdle() {
+    stopEverything();
+    switchScreen('idle');
+}
+
+// Language chip highlight
+function updateLangChipUI(lang) {
+    ui.langChips.forEach(chip => {
+        if (chip.getAttribute('data-lang') === lang) {
+            chip.classList.add('active');
+        } else {
+            chip.classList.remove('active');
+        }
+    });
+}
+
+// ================= 2. SESSION INITIALIZATION =================
 async function selectLanguage(lang) {
     if (isTransactionActive) return;
     isTransactionActive = true;
-
     currentLang = lang;
+    updateLangChipUI(lang);
+
     switchScreen('main');
-    ui.aiSub.innerText = "Initializing...";
-    ui.userSub.classList.add('hidden-sub');
-    
+    ui.aiSubText.innerText = "Connecting to AI Museum Guide...";
+    ui.userSubContainer.classList.add('hidden-sub');
+
     try {
         const res = await fetch(`${BACKEND_URL}/get_tour_data`, {
             method: 'POST',
@@ -84,65 +122,93 @@ async function selectLanguage(lang) {
             body: JSON.stringify({ lang: lang })
         });
         const data = await res.json();
-        tourData = data.tour; 
-        
-        isTransactionActive = false; 
-        playSlide(0, false); 
-        
-    } catch(e) {
-        console.error(e);
-        ui.aiSub.innerText = "Connection Error.";
+        tourData = data.tour || [];
         isTransactionActive = false;
+
+        currentSlideIndex = 0;
+        playSlide(0, false);
+    } catch(err) {
+        console.error("Load Tour Error:", err);
+        ui.aiSubText.innerText = "Connection error. Please try again.";
+        isTransactionActive = false;
+        setButtonsState('idle');
     }
 }
 
-// ================= 3. THE ENGINE =================
-function playSlide(index, showVisuals = true) {
-    stopEverything(); // This now calls clearUserText() automatically
+async function quickSwitchLang(lang) {
+    if (lang === currentLang) return;
+    stopEverything();
+    currentLang = lang;
+    updateLangChipUI(lang);
     
+    ui.aiSubText.innerText = "Changing language...";
+    try {
+        const res = await fetch(`${BACKEND_URL}/get_tour_data`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ lang: lang })
+        });
+        const data = await res.json();
+        tourData = data.tour || [];
+        playSlide(currentSlideIndex, isTourMode);
+    } catch(e) {
+        console.error(e);
+    }
+}
+
+// ================= 3. PRESENTATION SLIDESHOW ENGINE =================
+function playSlide(index, showVisuals = true) {
+    stopEverything();
+
     const slide = tourData[index];
     if (!slide) return;
-    
-    // 1. CAPTURE CONTEXT (Fixes "Vecna" issue)
-    if (slide.id) currentChapterId = slide.id; 
-    
-    ui.aiSub.innerText = slide.text; 
 
-    // VISUALS
-    if (showVisuals) {
+    currentSlideIndex = index;
+    currentChapterId = slide.id || "GREETING";
+
+    // Update Meta texts
+    ui.chapterTag.innerText = `CHAPTER ${String(index + 1).padStart(2, '0')} / ${String(tourData.length).padStart(2, '0')}`;
+    ui.slideTitle.innerText = slide.title || "IEEE ISSAT Sousse";
+    ui.slideSubtitle.innerText = slide.subtitle || "";
+    ui.aiSubText.innerText = slide.text;
+
+    if (showVisuals && slide.images && slide.images.length > 0) {
         enterMuseumMode();
     } else {
         exitMuseumMode();
     }
 
-    // AUDIO PLAYBACK
+    // Audio Playback
     if (slide.audio) {
-        setButtonsState('locked'); 
-
-        audioObj = new Audio(`data:audio/wav;base64,${slide.audio}`);
-        ui.orb.classList.add('speaking');
+        setButtonsState('locked');
+        const format = slide.audio_format || 'mp3';
+        audioObj = new Audio(`data:audio/${format};base64,${slide.audio}`);
         
-        if (showVisuals && slide.images.length > 0) {
+        ui.orb.classList.add('speaking');
+        ui.orbStatusText.innerText = "Speaking...";
+        ui.audioWave.classList.add('active');
+
+        if (showVisuals && slide.images && slide.images.length > 0) {
             startSmartSlideshow(slide.images, audioObj);
         }
 
-        audioObj.play().catch(e => console.log("Autoplay blocked"));
-        
+        audioObj.play().catch(e => console.log("Autoplay policy:", e));
+
         audioObj.onended = () => {
             ui.orb.classList.remove('speaking');
-            
-            // Wait 800ms
+            ui.orbStatusText.innerText = "Ready";
+            ui.audioWave.classList.remove('active');
+
             setTimeout(() => {
                 if (index === 0) {
-                    // Greeting -> Auto Listen
-                    ui.userSub.innerText = "Listening...";
-                    ui.userSub.classList.remove('hidden-sub');
+                    // Auto-listen after greeting
+                    ui.userSubText.innerText = "Say 'Start Tour' or ask a question...";
+                    ui.userSubContainer.classList.remove('hidden-sub');
                     startListening();
                 } else {
-                    // Tour -> Wait for button
-                    setButtonsState('idle'); 
+                    setButtonsState('idle');
                 }
-            }, 800); 
+            }, 600);
         };
     } else {
         setButtonsState('idle');
@@ -150,290 +216,311 @@ function playSlide(index, showVisuals = true) {
     }
 }
 
-function playDynamicResponse(text, audioB64) {
-    stopEverything(); // This now force-kills the mic
-    
-    ui.aiSub.innerText = text;
-    
-    if (audioB64) {
-        setButtonsState('locked'); 
+function playDynamicResponse(text, audioB64, format = 'mp3') {
+    stopEverything();
+    ui.aiSubText.innerText = text;
 
-        audioObj = new Audio(`data:audio/wav;base64,${audioB64}`);
-        ui.orb.classList.add('speaking');
-        audioObj.play();
+    if (audioB64) {
+        setButtonsState('locked');
+        audioObj = new Audio(`data:audio/${format};base64,${audioB64}`);
         
+        ui.orb.classList.add('speaking');
+        ui.orbStatusText.innerText = "Speaking...";
+        ui.audioWave.classList.add('active');
+        
+        audioObj.play().catch(e => console.log("Audio play error:", e));
+
         audioObj.onended = () => {
             ui.orb.classList.remove('speaking');
-            
+            ui.orbStatusText.innerText = "Ready";
+            ui.audioWave.classList.remove('active');
+
             setTimeout(() => {
-                if (isTourMode) {
-                    setButtonsState('idle'); 
-                } else {
-                    ui.userSub.innerText = "Listening...";
-                    ui.userSub.classList.remove('hidden-sub');
+                setButtonsState('idle');
+                if (!isTourMode) {
+                    ui.userSubText.innerText = "Listening...";
+                    ui.userSubContainer.classList.remove('hidden-sub');
                     startListening();
                 }
-            }, 800);
+            }, 600);
         };
     } else {
-        // NO AUDIO CASE (End of Tour)
         setButtonsState('idle');
-        
-        if (!isTourMode) {
-            setTimeout(() => {
-                ui.userSub.innerText = "Listening...";
-                ui.userSub.classList.remove('hidden-sub');
-                // The new startListening will handle the reset
-                startListening();
-            }, 800);
-        }
     }
 }
 
-function startSmartSlideshow(images, audioObj) {
+function startSmartSlideshow(images, audio) {
+    if (!images || images.length === 0) return;
+
+    // Render dot indicators
+    ui.imageIndicators.innerHTML = '';
+    images.forEach((_, idx) => {
+        const dot = document.createElement('div');
+        dot.classList.add('img-dot');
+        if (idx === 0) dot.classList.add('active');
+        ui.imageIndicators.appendChild(dot);
+    });
+
     ui.img.src = images[0];
     ui.img.classList.remove('fade-out');
 
-    audioObj.onloadedmetadata = () => {
-        const duration = audioObj.duration;
-        const imgCount = images.length;
+    const updateDots = (activeIdx) => {
+        const dots = ui.imageIndicators.querySelectorAll('.img-dot');
+        dots.forEach((d, i) => {
+            if (i === activeIdx) d.classList.add('active');
+            else d.classList.remove('active');
+        });
+    };
+
+    const setupCycle = (durationSec) => {
+        const count = images.length;
+        if (count <= 1) return;
         
-        if (imgCount > 1 && duration > 0) {
-            const intervalTime = (duration * 1000) / imgCount;
-            let imgIdx = 0;
-            
-            imageInterval = setInterval(() => {
-                imgIdx = (imgIdx + 1) % imgCount;
-                ui.img.classList.add('fade-out');
-                imageFadeTimeout = setTimeout(() => {
-                    ui.img.src = images[imgIdx];
-                    ui.img.classList.remove('fade-out');
-                }, 500); 
-            }, intervalTime);
+        const intervalMs = Math.max(3000, (durationSec * 1000) / count);
+        let currentIdx = 0;
+
+        imageInterval = setInterval(() => {
+            currentIdx = (currentIdx + 1) % count;
+            ui.img.classList.add('fade-out');
+
+            imageFadeTimeout = setTimeout(() => {
+                ui.img.src = images[currentIdx];
+                ui.img.classList.remove('fade-out');
+                updateDots(currentIdx);
+            }, 400);
+        }, intervalMs);
+    };
+
+    if (audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
+        setupCycle(audio.duration);
+    } else {
+        audio.onloadedmetadata = () => {
+            setupCycle(audio.duration || 12);
+        };
+        // Fallback timer if metadata takes long
+        setTimeout(() => {
+            if (!imageInterval) setupCycle(12);
+        }, 1500);
+    }
+}
+
+// Mode Switches
+function enterMuseumMode() {
+    isTourMode = true;
+    ui.presentationArea.style.opacity = '1';
+    ui.presentationArea.style.pointerEvents = 'auto';
+    ui.orb.classList.remove('center-mode');
+    
+    ui.tourToggleBtn.classList.add('active');
+    ui.tourToggleLabel.innerText = "Tour Mode (Active)";
+}
+
+function exitMuseumMode() {
+    isTourMode = false;
+    ui.presentationArea.style.opacity = '0';
+    ui.presentationArea.style.pointerEvents = 'none';
+    ui.orb.classList.add('center-mode');
+    
+    ui.tourToggleBtn.classList.remove('active');
+    ui.tourToggleLabel.innerText = "Tour Mode";
+}
+
+function toggleTourMode() {
+    if (isTourMode) {
+        exitMuseumMode();
+        ui.aiSubText.innerText = "Switched to Interactive Q&A Mode. Ask me any question!";
+    } else {
+        currentSlideIndex = 1;
+        playSlide(1, true);
+    }
+}
+
+// ================= 4. SPEECH RECOGNITION (ANTI-ZOMBIE LOGIC) =================
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let speechAvailable = false;
+
+if (SpeechRecognition) {
+    try {
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        speechAvailable = true;
+    } catch(e) {
+        console.warn("Speech Recognition not supported:", e);
+    }
+}
+
+if (ui.btnAsk) {
+    ui.btnAsk.addEventListener('click', () => {
+        if (isTransactionActive) return;
+        if (!speechAvailable) {
+            toggleInputModal(true);
+            return;
+        }
+        ui.userSubText.innerText = "Listening...";
+        ui.userSubContainer.classList.remove('hidden-sub');
+        startListening();
+    });
+}
+
+function startListening() {
+    if (isTransactionActive || !speechAvailable) return;
+
+    try { recognition.abort(); } catch(e) {}
+
+    setTimeout(() => {
+        try {
+            recognition.lang = currentLang === 'ar' ? 'ar-TN' : (currentLang === 'fr' ? 'fr-FR' : 'en-US');
+            recognition.start();
+
+            setButtonsState('listening');
+            ui.orb.classList.add('listening');
+            ui.orbStatusText.innerText = "Listening...";
+        } catch(err) {
+            console.error("Mic start failed:", err);
+            setButtonsState('idle');
+        }
+    }, 80);
+}
+
+if (recognition) {
+    recognition.onresult = (event) => {
+        clearTimeout(silenceTimer);
+
+        let interim = '';
+        let final = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+                final += event.results[i][0].transcript;
+            } else {
+                interim += event.results[i][0].transcript;
+            }
+        }
+
+        const displayText = final || interim;
+        ui.userSubText.innerText = displayText;
+
+        // 1.8 seconds pause detection
+        silenceTimer = setTimeout(() => {
+            if (displayText.trim().length > 0) {
+                commitUserSpeech(displayText);
+            }
+        }, 1800);
+    };
+
+    recognition.onend = () => {
+        ui.orb.classList.remove('listening');
+        if (!isTransactionActive) {
+            ui.orbStatusText.innerText = "Ready";
+            setTimeout(() => {
+                if (ui.askBtnText.innerText.includes("Listening")) {
+                    setButtonsState('idle');
+                }
+            }, 800);
+        }
+    };
+
+    recognition.onerror = (e) => {
+        console.warn("Recognition event:", e.error);
+        if (e.error === 'not-allowed') {
+            ui.userSubText.innerText = "Microphone access blocked. Use buttons or type below.";
         }
     };
 }
 
-// ================= 4. ROBUST SPEECH RECOGNITION =================
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-const recognition = new SpeechRecognition();
-
-// KEY SETTINGS FOR ROBUSTNESS
-recognition.continuous = true; // KEEP LISTENING until we tell it to stop
-recognition.interimResults = true; // We need this to detect silence
-
-ui.btnAsk.addEventListener('click', () => {
-    if (isTransactionActive) return;
-    ui.userSub.innerText = "Listening...";
-    ui.userSub.classList.remove('hidden-sub');
-    startListening();
-});
-
-function startListening() {
-    if (isTransactionActive) return;
-
-    // Double-tap safety: Kill it again just in case
-    try { recognition.abort(); } catch(e) {} 
-
-    // Wait 50ms for the hardware to release, then start
-    setTimeout(() => {
-        try { 
-            recognition.lang = currentLang === 'ar' ? 'ar-TN' : (currentLang === 'fr' ? 'fr-FR' : 'en-US');
-            recognition.start(); 
-            
-            setButtonsState('listening');
-            ui.orbCore.style.boxShadow = "0 0 50px cyan"; 
-            console.log("Mic Started Successfully"); // Check Console if this appears
-        } catch(e) {
-            console.error("Mic Start Error:", e);
-        }
-    }, 100);
-}
-recognition.onresult = (event) => {
-    // 1. CLEAR THE TIMER (User is still talking)
-    clearTimeout(silenceTimer);
-
-    // 2. BUILD TRANSCRIPT
-    let interimTranscript = '';
-    let finalTranscript = '';
-
-    for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-        } else {
-            interimTranscript += event.results[i][0].transcript;
-        }
-    }
-
-    const displayText = finalTranscript || interimTranscript;
-    ui.userSub.innerText = `You: ${displayText}`;
-
-    // 3. SET SILENCE TIMER (The "Wait for Pause" Logic)
-    // Wait 2 seconds. If no new words come in, SEND IT.
-    silenceTimer = setTimeout(() => {
-        if (displayText.trim().length > 0) {
-            commitUserSpeech(displayText);
-        }
-    }, 2000); 
-};
-
 async function commitUserSpeech(text) {
-    // FIX: Use abort() instead of stop() to kill the process instantly.
-    // This prevents the "Deaf Mic" issue on the next turn.
-    try { recognition.abort(); } catch(e) {}
+    try { if (recognition) recognition.abort(); } catch(e) {}
     
-    ui.orbCore.style.boxShadow = "none";
-    
+    ui.orb.classList.remove('listening');
     if (isTransactionActive) return;
-    isTransactionActive = true; 
+    isTransactionActive = true;
 
     await handleUserIntent(text);
 }
 
-recognition.onend = () => {
-    // If mic stops but we are NOT sending data, it might be accidental.
-    // However, continuous=true usually keeps it open.
-    // We only remove the visual glow here.
-    if (!isTransactionActive) {
-        ui.orbCore.style.boxShadow = "none";
-        // If user didn't say anything, reset buttons after a moment
-        setTimeout(() => {
-            if (ui.btnAsk.innerText.includes("Listening")) {
-                 setButtonsState('idle'); 
-                 ui.userSub.classList.add('hidden-sub');
-            }
-        }, 1000);
-    }
-};
-
-// ================= 5. ROUTER =================
+// ================= 5. ROUTER & REASONING DISPATCH =================
 async function handleUserIntent(text) {
-    // 1. Sanity Check
-    if (!text || text.trim() === "" || text === "undefined") {
-        console.log("Empty speech detected, ignoring.");
-        isTransactionActive = false; 
+    if (!text || text.trim() === "") {
+        isTransactionActive = false;
         setButtonsState('idle');
         return;
     }
 
-    ui.aiSub.innerText = "Thinking...";
+    ui.aiSubText.innerText = "Thinking...";
+    ui.orbStatusText.innerText = "Analyzing...";
     setButtonsState('locked');
 
     try {
         const res = await fetch(`${BACKEND_URL}/chat_router`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                text: text, 
+            body: JSON.stringify({
+                text: text,
                 lang: currentLang,
-                chapter: currentChapterId 
+                chapter: currentChapterId
             })
         });
-        
+
         const data = await res.json();
-        isTransactionActive = false; 
+        isTransactionActive = false;
 
-        // === THE FIX IS HERE ===
-        
-        // 2. CHECK SPECIFIC MODES FIRST
-        // If it is a Tour command, run it immediately. It doesn't need 'data.response'.
+        // TOUR INTENT
         if (data.mode === 'TOUR') {
-            currentSlideIndex = 1; 
-            playSlide(1, true); 
-            return; // Exit function successfully
-        }
-
-        // 3. ERROR HANDLING (For Chat Mode)
-        // If it wasn't a Tour, it MUST have a text response. If not, it's an error.
-        if (data.error || !data.response) {
-            console.error("Backend Error:", data.error);
-            ui.aiSub.innerText = "I didn't quite catch that.";
-            setButtonsState('idle');
-            
-            setTimeout(() => {
-                if (!isTourMode) startListening();
-            }, 500);
+            currentSlideIndex = 1;
+            playSlide(1, true);
             return;
         }
 
-        // 4. CHAT SUCCESS
-        playDynamicResponse(data.response, data.audio);
-
-    } catch (e) { 
-        console.error(e);
-        ui.aiSub.innerText = "Connection Error.";
+        // CHAT INTENT
+        if (data.response) {
+            playDynamicResponse(data.response, data.audio, data.audio_format || 'mp3');
+        } else {
+            ui.aiSubText.innerText = "I'm ready for your next question!";
+            setButtonsState('idle');
+        }
+    } catch(err) {
+        console.error("Router error:", err);
+        ui.aiSubText.innerText = "Network connection issue. Please retry.";
         isTransactionActive = false;
         setButtonsState('idle');
     }
 }
 
-// ================= 6. BUTTON STATES =================
+// Topic Preset Queries
+function askPreset(queryText) {
+    if (isTransactionActive) return;
+    ui.userSubText.innerText = queryText;
+    ui.userSubContainer.classList.remove('hidden-sub');
+    commitUserSpeech(queryText);
+}
+
+// ================= 6. BUTTON STATE MANAGEMENT =================
 function setButtonsState(state) {
-    ui.btnNext.disabled = false;
-    ui.btnPrev.disabled = false;
-    ui.btnExit.disabled = false;
-    ui.btnAsk.disabled = false;
-    
+    const isLocked = (state === 'locked' || state === 'listening');
+    ui.btnNext.disabled = isLocked;
+    ui.btnPrev.disabled = isLocked;
+    ui.tourToggleBtn.disabled = isLocked;
+
+    ui.btnAsk.classList.remove('listening', 'locked');
+
     switch(state) {
         case 'listening':
-            ui.btnNext.disabled = true;
-            ui.btnPrev.disabled = true;
-            ui.btnExit.disabled = true;
-            ui.btnAsk.disabled = true;
-            ui.btnAsk.innerText = "👂 Listening...";
+            ui.btnAsk.classList.add('listening');
+            ui.askBtnText.innerText = "Listening...";
             break;
         case 'locked':
-            ui.btnNext.disabled = true;
-            ui.btnPrev.disabled = true;
-            ui.btnExit.disabled = true;
-            ui.btnAsk.disabled = true;
-            ui.btnAsk.innerText = "🔒 ...";
+            ui.btnAsk.classList.add('locked');
+            ui.askBtnText.innerText = "...";
             break;
         case 'idle':
-            ui.btnAsk.innerText = "🎤 Ask Question";
+            ui.askBtnText.innerText = "Ask Guide";
             break;
     }
 }
 
-// ================= 7. HELPERS =================
-
-function clearUserText() {
-    ui.userSub.innerText = "";
-    ui.userSub.classList.add('hidden-sub');
-}
-
-function enterMuseumMode() {
-    isTourMode = true;
-    ui.presentationArea.classList.add('active');
-    ui.orb.classList.add('mini-mode');
-    ui.nav.classList.remove('hidden'); 
-}
-
-function exitMuseumMode() {
-    isTourMode = false;
-    ui.presentationArea.classList.remove('active');
-    ui.orb.classList.remove('mini-mode');
-    ui.nav.classList.add('hidden');
-}
-
-function stopEverything() {
-    if (audioObj) audioObj.pause();
-    clearInterval(imageInterval);
-    clearTimeout(imageFadeTimeout);
-    clearTimeout(silenceTimer);
-    
-    // FIX: Force Kill the Mic
-    try { recognition.abort(); } catch(e){}
-    
-    isTransactionActive = false;
-    clearUserText(); 
-}
-
-function fullReset() {
-    stopEverything();
-    location.reload();
-}
-
+// Navigation Controls
 function nextSlide() {
     if (isTransactionActive) return;
     if (currentSlideIndex < tourData.length - 1) {
@@ -441,14 +528,62 @@ function nextSlide() {
         playSlide(currentSlideIndex, true);
     } else {
         exitMuseumMode();
-        playDynamicResponse("That concludes the tour. You can ask me any questions!", null);
+        playDynamicResponse(
+            "That concludes our 10-year tour! Feel free to ask me anything about our branch or projects.",
+            null
+        );
     }
 }
 
 function prevSlide() {
     if (isTransactionActive) return;
-    if (currentSlideIndex > 1) { 
+    if (currentSlideIndex > 0) {
         currentSlideIndex--;
         playSlide(currentSlideIndex, true);
     }
 }
+
+function stopEverything() {
+    if (audioObj) {
+        audioObj.pause();
+        audioObj = null;
+    }
+    clearInterval(imageInterval);
+    clearTimeout(imageFadeTimeout);
+    clearTimeout(silenceTimer);
+
+    try { if (recognition) recognition.abort(); } catch(e){}
+
+    ui.orb.classList.remove('speaking', 'listening');
+    ui.audioWave.classList.remove('active');
+    isTransactionActive = false;
+}
+
+function fullReset() {
+    stopEverything();
+    location.reload();
+}
+
+// Manual Text Input Fallback Modal
+function toggleInputModal(show) {
+    const modal = document.getElementById('text-input-modal');
+    if (!modal) return;
+    if (show) modal.classList.remove('hidden');
+    else modal.classList.add('hidden');
+}
+
+function sendManualQuery() {
+    const input = document.getElementById('manual-input');
+    if (!input || !input.value.trim()) return;
+    const text = input.value.trim();
+    input.value = '';
+    toggleInputModal(false);
+    askPreset(text);
+}
+
+document.addEventListener('keydown', (e) => {
+    // Arrow shortcuts for kiosk keyboard
+    if (e.key === 'ArrowRight') nextSlide();
+    if (e.key === 'ArrowLeft') prevSlide();
+    if (e.key === 'Escape') toggleInputModal(false);
+});

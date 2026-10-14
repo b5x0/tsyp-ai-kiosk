@@ -3,52 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TSYP AI Kiosk</title>
+    <title>TSYP AI Kiosk | IEEE ISSAT Sousse</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div id="static-logo">
-        <img src="assets/ieee_logo.png" alt="IEEE Logo" class="top-logo">
-        <div class="logo-sep"></div> 
-        <img src="assets/tsyp_logo.png" alt="TSYP Logo" class="top-logo">
-    </div>
-
+    <!-- Background Starfall & Cosmic Glow -->
     <div id="starfall"></div>
+    <div class="cosmic-nebula"></div>
 
-    <div id="idle-screen" class="screen active">
-        <h1>TSYP AI Kiosk</h1>
-        <p>Tap to Wake Up</p>
-        <button id="start-btn" class="btn">Start Session</button>
-    </div>
-
-    <div id="language-screen" class="screen hidden">
-        <h2>Select Language</h2>
-        <div class="flag-container">
-            <button class="flag-btn" onclick="selectLanguage('en')">
-                <span class="flag-icon">🇺🇸</span> English
-            </button>
-            <button class="flag-btn" onclick="selectLanguage('fr')">
-                <span class="flag-icon">🇫🇷</span> Français
-            </button>
-            <button class="flag-btn" onclick="selectLanguage('ar')">
-                <span class="flag-icon">🇹🇳</span> 
-                Tounsi <span class="beta-badge">BETA</span>
-            </button>
-        </div>
-        <button class="back-btn-small" onclick="goToIdle()">❮ Cancel</button>
-    </div>
-
-    <div id="main-screen" class="screen hidden">
-        
-        <button id="exit-btn" onclick="fullReset()">Exit Session</button>
-
-        <div id="presentation-area">
-            <img id="presentation-img" src="" alt="Slide">
+    <!-- Persistent Top Bar -->
+    <header id="top-bar">
+        <div class="branding-group">
+            <img src="assets/ieee_logo.png" alt="IEEE Logo" class="brand-logo">
+            <div class="brand-sep"></div>
+            <img src="assets/tsyp_logo.png" alt="TSYP Logo" class="brand-logo">
+            <div class="brand-badge">
+                <span class="badge-dot"></span>
+                <span class="badge-text">UTOPIA • TSYP 13</span>
+            </div>
         </div>
 
+        <div class="header-center">
+            <span class="decade-pill">✨ 10 YEARS OF LEADERSHIP (2014 – 2024)</span>
+        </div>
+
+        <div class="header-actions">
+            <div class="lang-selector-group">
+                <button class="lang-chip" data-lang="en" onclick="quickSwitchLang('en')">EN</button>
+                <button class="lang-chip" data-lang="fr" onclick="quickSwitchLang('fr')">FR</button>
+                <button class="lang-chip" data-lang="ar" onclick="quickSwitchLang('ar')">🇹🇳 تونس</button>
+            </div>
+            <button id="exit-btn" class="exit-btn" onclick="fullReset()">✕ Exit</button>
+        </div>
+    </header>
+
+    <!-- SCREEN 1: Idle Screen -->
+    <section id="idle-screen" class="screen active">
+        <div class="idle-content">
+            <div class="idle-hero">
+                <div class="hero-badge">OFFICIAL INTERACTIVE KIOSK</div>
+                <h1 class="glow-title">TSYP AI KIOSK</h1>
+                <p class="hero-subtitle">IEEE ISSAT Sousse Student Branch • Digital Museum & Voice Guide</p>
+            </div>
+
+            <!-- Grand Central Orb for Idle -->
+            <div class="hero-orb-wrap">
+                <div class="orb-container">
+                    <div class="energy-ring ring-1"></div>
+                    <div class="energy-ring ring-2"></div>
+                    <div class="energy-ring ring-3"></div>
+                    <div class="orb-core-glow"></div>
+                    <div class="orb-core"></div>
+                    <div class="particles">
+                        <span></span><span></span><span></span><span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="idle-cta-group">
+                <button id="start-btn" class="primary-btn glow-btn">
+                    <span class="btn-icon">🎙️</span>
+                    <span class="btn-text">Start Interactive Tour</span>
+                </button>
+                <div class="cta-hint">Touch screen or say "Start Tour" to begin</div>
+            </div>
+
+            <div class="features-row">
+                <div class="feature-item">
+                    <span class="feat-icon">🏛️</span>
+                    <span>10-Year History</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feat-icon">⚡</span>
+                    <span>4 Chapters & 2 Groups</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feat-icon">🤖</span>
+                    <span>Live Voice Q&A</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feat-icon">🌍</span>
+                    <span>Trilingual (EN / FR / AR)</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SCREEN 2: Language Selection Screen -->
+    <section id="language-screen" class="screen hidden">
+        <div class="lang-modal">
+            <div class="lang-header">
+                <h2>Choose Tour Language</h2>
+                <p>Select your preferred language for audio narration and voice interaction</p>
+            </div>
+
+            <div class="flag-cards-grid">
+                <button class="lang-card" onclick="selectLanguage('en')">
+                    <div class="card-flag">🇺🇸</div>
+                    <div class="card-title">English</div>
+                    <div class="card-desc">Full museum tour with global IEEE standards</div>
+                    <span class="card-select-hint">Select ❯</span>
+                </button>
+
+                <button class="lang-card" onclick="selectLanguage('fr')">
+                    <div class="card-flag">🇫🇷</div>
+                    <div class="card-title">Français</div>
+                    <div class="card-desc">Visite complète et présentation officielle</div>
+                    <span class="card-select-hint">Choisir ❯</span>
+                </button>
+
+                <button class="lang-card featured" onclick="selectLanguage('ar')">
+                    <div class="card-badge">POPULAIRE</div>
+                    <div class="card-flag">🇹🇳</div>
+                    <div class="card-title">تونسي / Derja</div>
+                    <div class="card-desc">دورة كاملة بالتونسي وتفاعل صوتي مباشر</div>
+                    <span class="card-select-hint">اختار ❯</span>
+                </button>
+            </div>
+
+            <button class="back-link" onclick="goToIdle()">❮ Back to Welcome</button>
+        </div>
+    </section>
+
+    <!-- SCREEN 3: Main Museum & Interactive Screen -->
+    <section id="main-screen" class="screen hidden">
+        <!-- Visual Presentation Area (Museum Stage) -->
+        <main id="presentation-area">
+            <div class="slide-meta-card">
+                <div class="meta-top">
+                    <span id="slide-chapter-tag" class="chapter-tag">CHAPTER 01 / 11</span>
+                    <div id="image-indicators" class="image-indicators"></div>
+                </div>
+                <h2 id="slide-title" class="slide-title">Welcome to IEEE ISSAT Sousse</h2>
+                <div id="slide-subtitle" class="slide-subtitle">A Decade of Innovation (2014 - 2024)</div>
+            </div>
+
+            <div class="slide-viewport">
+                <img id="presentation-img" src="" alt="Slide Visual">
+                <div class="slide-overlay-gradient"></div>
+            </div>
+        </main>
+
+        <!-- Reactive Floating Voice Orb -->
         <div id="galaxy-view">
-             <div class="orb-container">
+            <div class="orb-container">
                 <div class="energy-ring ring-1"></div>
                 <div class="energy-ring ring-2"></div>
                 <div class="energy-ring ring-3"></div>
@@ -57,20 +158,84 @@
                 <div class="particles">
                     <span></span><span></span><span></span>
                 </div>
-             </div>
+            </div>
+            <div class="orb-status-badge">
+                <span class="pulse-indicator"></span>
+                <span id="orb-status-text">AI Guide</span>
+            </div>
         </div>
 
+        <!-- Subtitles & Interactive Dialog Area -->
         <div id="subtitles-container">
-            <div id="ai-subtitles" class="subtitle-text"></div>
-            <div id="user-subtitles" class="subtitle-text user-sub hidden-sub"></div>
+            <div class="dialog-stack">
+                <!-- User Speech Bubble -->
+                <div id="user-subtitles" class="subtitle-bubble user-bubble hidden-sub">
+                    <div class="bubble-header">
+                        <span class="speaker-icon">👤</span>
+                        <span class="speaker-name">You</span>
+                    </div>
+                    <div class="bubble-body" id="user-sub-text">Listening...</div>
+                </div>
+
+                <!-- AI Speech Bubble -->
+                <div id="ai-subtitles" class="subtitle-bubble ai-bubble">
+                    <div class="bubble-header">
+                        <span class="speaker-icon">🤖</span>
+                        <span class="speaker-name">AI Museum Guide</span>
+                        <div class="audio-wave-anim" id="audio-wave">
+                            <span></span><span></span><span></span><span></span>
+                        </div>
+                    </div>
+                    <div class="bubble-body" id="ai-sub-text">Initializing Guide...</div>
+                </div>
+            </div>
+
+            <!-- Quick Suggestion Topic Pills -->
+            <div id="topic-pills" class="topic-pills">
+                <button class="topic-chip" onclick="askPreset('Tell me about the humanoid NAO robot.')">🤖 NAO Robot</button>
+                <button class="topic-chip" onclick="askPreset('What is the Vecna Algorithm hackathon?')">💻 Vecna Hackathon</button>
+                <button class="topic-chip" onclick="askPreset('How did the branch win the TSYP 12 Challenge?')">🏆 TSYP 12 Win</button>
+                <button class="topic-chip" onclick="askPreset('What is the WALL-E environmental hackathon?')">🌱 Wall-E Hackathon</button>
+                <button class="topic-chip" onclick="askPreset('Who is in the Executive Board team?')">👥 Executive Board</button>
+            </div>
         </div>
 
-        <div id="nav-controls" class="hidden">
-            <button id="prev-btn" class="nav-btn" onclick="prevSlide()">❮ Back</button>
-            <button id="ask-btn">🎤 Ask Question</button>
-            <button id="next-btn" class="nav-btn" onclick="nextSlide()">Next ❯</button>
-        </div>
+        <!-- Floating Navigation Dock -->
+        <nav id="nav-controls" class="floating-dock">
+            <button id="prev-btn" class="dock-btn nav-btn" onclick="prevSlide()" title="Previous Chapter">
+                <span class="btn-arrow">❮</span>
+                <span class="btn-label">Back</span>
+            </button>
 
+            <button id="tour-toggle-btn" class="dock-btn tour-btn" onclick="toggleTourMode()" title="Toggle Tour">
+                <span id="tour-toggle-icon">🏛️</span>
+                <span id="tour-toggle-label" class="btn-label">Tour Mode</span>
+            </button>
+
+            <button id="ask-btn" class="dock-btn mic-btn" title="Tap to Speak">
+                <div class="mic-icon-wrap">
+                    <span class="mic-icon">🎤</span>
+                </div>
+                <span id="ask-btn-text" class="btn-label">Ask Guide</span>
+            </button>
+
+            <button id="next-btn" class="dock-btn nav-btn" onclick="nextSlide()" title="Next Chapter">
+                <span class="btn-label">Next</span>
+                <span class="btn-arrow">❯</span>
+            </button>
+        </nav>
+    </section>
+
+    <!-- Fallback Text Input Modal (accessible via keyboard or if mic unavailable) -->
+    <div id="text-input-modal" class="text-modal hidden">
+        <div class="modal-card">
+            <h3>Ask the AI Guide</h3>
+            <div class="input-row">
+                <input type="text" id="manual-input" placeholder="Type your question about IEEE ISSAT Sousse...">
+                <button id="manual-send-btn" onclick="sendManualQuery()">Send</button>
+            </div>
+            <button class="close-modal-btn" onclick="toggleInputModal(false)">Close</button>
+        </div>
     </div>
 
     <script src="script.js"></script>

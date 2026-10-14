@@ -1,72 +1,73 @@
-# 🤖 TSYP AI Kiosk - Interactive Voice Guide
+# 🤖 TSYP 13 AI Kiosk - Interactive Digital Museum & Voice Guide
 
 ![Status](https://img.shields.io/badge/Status-Completed-success)
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
-![Gemini](https://img.shields.io/badge/AI-Gemini%202.0%20Flash-orange)
+![GCP](https://img.shields.io/badge/GCP-Vertex%20AI%20%2B%20Cloud%20TTS-green)
+![Gemini](https://img.shields.io/badge/Brain-Gemini%202.5%20Flash-orange)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-An interactive, voice-activated AI Kiosk developed for the **IEEE ISSAT Sousse Student Branch** at the **TSYP 13 Congress**. This system serves as a virtual museum guide, providing real-time, bilingual (English & Tunisian Arabic) tours of the branch's 10-year history.
+An interactive, voice-activated AI Kiosk developed for the **IEEE ISSAT Sousse Student Branch** at the **TSYP 13 Congress** (Booth: **UTOPIA**). Celebrating a full decade of leadership, innovation, and achievements (**2014 – 2024**).
 
-## ✨ Features
+---
 
-* **🎙️ Real-Time Speech-to-Speech:** Powered by Google's **Gemini 2.0 Flash**, offering near-instant conversational responses.
-* **🌍 Bilingual Support:** Native support for **English** and **Tunisian Arabic (Tounsi)**, enabling accessible interaction for local attendees.
-* **🧠 Context-Aware Intelligence:** The AI understands "Tour Mode" vs. "Chat Mode" and knows exactly which visual slide the user is viewing, allowing for follow-up questions like *"Tell me more about this hackathon."*
-* **🛑 Anti-Hallucination & Safety:** Robust error handling ensures the AI falls back gracefully if audio generation fails or inputs are unclear.
-* **🔊 "Anti-Zombie" Microphone Logic:** Custom JavaScript engineering to prevent echo loops and microphone lock-ups in noisy event environments.
+## ✨ Key Upgrades & Features
+
+* **🏛️ 10-Year Comprehensive Archive (2014–2024):** Fully rebuilt from official branch archives, featuring 11 interactive museum chapters and 36 genuine high-resolution event photos:
+  1. **Welcome & Instructions**
+  2. **Foundation (2014):** *"Come as students, Leave as leaders"*
+  3. **Computer Society (CS):** Vecna Algorithm hackathon & IEEEXtreme
+  4. **Robotics & Automation Society (RAS):** Humanoid NAO robot & Tunisian Innovation Days champions
+  5. **Power & Energy Society (PES):** COPX 2.0, Green Tech & renewable wind farm expeditions
+  6. **Industry Applications Society (IAS):** Industry 4.0, smart automation & Valeo visits
+  7. **Women in Engineering (WIE):** #wielead, Small Business Showcase & Pinktober
+  8. **Humanitarian Technology (SIGHT):** AI Gateway & Youth Scouts STEM education
+  9. **Community Life:** Campus integration carnivals, hikes, cultural nights & Ramadan Iftars
+  10. **A Decade of Achievements:** TSYP 12 TN 2056 Challenge winners & 10th anniversary milestone
+  11. **TSYP 13 UTOPIA Booth & The Future:** Executive board connections & WALL-E environmental AI hackathon for Gabès
+* **⚡ GCP Vertex AI & Cloud TTS Live:**
+  - **Brain:** Vertex AI `gemini-2.5-flash` running on Google Cloud Project `callout6` for sub-second intent classification and conversational answers.
+  - **Voice:** Production-grade Google Cloud Text-to-Speech API (`Journey-F`, `Neural2-A`, `Wavenet-B`) generating studio-quality MP3 speech live with zero rate-limit delay.
+* **🌍 Trilingual Speech & Text:** Full support for **English**, **Français**, and **Tunisian Arabic (Derja / تونس)**.
+* **✨ Futuristic Glassmorphic UI:** Cosmic starfall animations, dynamic sound-reactive glowing orb, audio equalizer waveform, chapter scrubber dots, and quick-topic question chips.
+* **🛡️ Anti-Zombie Microphone Architecture:** Clean hardware release and silence detection preventing audio feedback loops in noisy congress halls.
+
+---
 
 ## 🛠️ Tech Stack
 
-* **Backend:** Python (Flask)
-* **AI Engine:** Google GenAI SDK (Gemini 2.0 Flash for logic + Gemini 2.5 Flash for TTS)
-* **Frontend:** HTML5, CSS3 (Neon/Cyberpunk Style), Vanilla JavaScript
-* **Audio:** Browser Web Speech API + Server-side PCM-to-WAV processing
+* **Backend:** Python 3.14 / Flask / Flask-CORS
+* **Cloud & AI:** Google Cloud Platform (Project `callout6`), Vertex AI SDK, Google Cloud TTS API
+* **Frontend:** HTML5, CSS3 (Glassmorphism & Cyberpunk Neon tokens), Vanilla JavaScript
+* **Audio:** HTML5 Audio API (MP3 / base64) + Web Speech API for voice recognition
 
-## 🚀 Installation & Setup
+---
 
-1.  **Clone the repository**
-    ```bash
-    git clone [https://github.com/YOUR_USERNAME/tsyp-ai-kiosk.git](https://github.com/YOUR_USERNAME/tsyp-ai-kiosk.git)
-    cd tsyp-ai-kiosk
-    ```
+## 🚀 Quickstart
 
-2.  **Create a Virtual Environment**
-    ```bash
-    python -m venv .venv
-    # Windows
-    .venv\Scripts\activate
-    # Mac/Linux
-    source .venv/bin/activate
-    ```
+1. **Activate Virtual Environment**
+   ```bash
+   source .venv/bin/activate
+   ```
 
-3.  **Install Dependencies**
-    ```bash
-    pip install -r requirements.txt
-    ```
+2. **Configure Environment Variables (`.env`)**
+   ```env
+   GCP_PROJECT=callout6
+   GCP_LOCATION=us-central1
+   GOOGLE_APPLICATION_CREDENTIALS=/path/to/callout6-sa-key.json
+   GCP_API_KEY=your_gcp_api_key
+   PORT=5005
+   ```
 
-4.  **Configure API Key**
-    * Rename `.env.example` to `.env`
-    * Add your Google Gemini API Key:
-        ```text
-        GEMINI_API_KEY=your_key_here
-        ```
+3. **Start the Application**
+   ```bash
+   python app.py
+   ```
+   Open your browser at `http://localhost:5005`.
 
-5.  **Run the Application**
-    ```bash
-    python app.py
-    ```
-    * Open your browser and go to `http://localhost:5000`
-
-## 🧠 How It Works
-
-1.  **The "Brain":** A Flask backend routes user audio transcripts to Gemini 2.0.
-2.  **The Router:** A custom logic layer determines if the user wants to start a "Tour" (scripted visual presentation) or "Chat" (Q&A).
-3.  **The Voice:** Responses are converted to high-quality audio using Gemini's TTS capabilities and streamed back to the browser in base64.
-4.  **The Interface:** A responsive frontend manages state (Listening, Thinking, Speaking) with visual feedback via a glowing animated orb.
+---
 
 ## 🤝 Acknowledgments
 
-Built with ❤️ for **IEEE ISSAT Sousse SB** and the **Tunisian Student & Young Professional (TSYP) Congress**.
+Built with ❤️ for **IEEE ISSAT Sousse Student Branch** at the **TSYP 13 Congress**.
 
----
 *Created by Mohamed Attia*

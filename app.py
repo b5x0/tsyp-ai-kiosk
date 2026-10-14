@@ -1,326 +1,459 @@
+import os
+import io
+import json
+import base64
+import requests
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-import io, os, wave, base64, json, time
-from dotenv import load_dotenv
 
 load_dotenv()
-API_KEY = os.getenv("GEMINI_API_KEY")
 
-if not API_KEY: raise ValueError("No API_KEY found!")
+GCP_PROJECT = os.getenv("GCP_PROJECT", "callout6")
+GCP_LOCATION = os.getenv("GCP_LOCATION", "us-central1")
+GCP_API_KEY = os.getenv("GCP_API_KEY")
+CREDENTIALS_PATH = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+
+if CREDENTIALS_PATH and os.path.exists(CREDENTIALS_PATH):
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = CREDENTIALS_PATH
 
 app = Flask(__name__, static_folder='.')
 CORS(app)
 
-client = genai.Client(api_key=API_KEY)
+# Vertex AI LLM Client
+vertex_client = None
+try:
+    vertex_client = genai.Client(vertexai=True, project=GCP_PROJECT, location=GCP_LOCATION)
+    print(f"✅ Connected to Vertex AI on project: {GCP_PROJECT} ({GCP_LOCATION})")
+except Exception as e:
+    print(f"⚠️ Warning: Could not initialize Vertex AI client: {e}")
 
-# --- CONFIGURATION ---
-BRAIN_MODEL = "gemini-2.0-flash" 
-# REVERTING TO THE ONLY WORKING AUDIO MODEL
-VOICE_MODEL = "gemini-2.5-flash-preview-tts" 
-VOICE_NAME = "Kore"
-
-# Ensure cache directory exists
+BRAIN_MODEL = "gemini-2.5-flash"
 CACHE_DIR = "audio_cache"
 if not os.path.exists(CACHE_DIR):
     os.makedirs(CACHE_DIR)
 
-# ==========================================
-# 1. THE TOUR SCRIPT (Detailed ~20s Versions)
-# ==========================================
+# ==============================================================================
+# 1. KNOWLEDGE BASE & TOUR SCRIPT (IEEE ISSAT Sousse SB - 10 Year History & TSYP 13)
+# ==============================================================================
 TOUR_DATA = {
     "GREETING": {
-        "text_en": "Hello! I am ready to help. You can ask me questions, or say 'Start Tour' to begin the visual presentation.",
-        "text_fr": "Bonjour! Je suis prêt. Posez-moi vos questions, ou dites 'Commencer' pour lancer la visite visuelle.",
-        "text_ar": "عسلامة. أنا حاضر. تنجم تسألني، ولا قول ابدأ بش تبدا الدورة.",
-        "images": [] # No images for greeting
+        "title": "Welcome / عسلامة / Bienvenue",
+        "subtitle": "Interactive AI Kiosk at TSYP 13 Congress",
+        "text_en": "Hello and welcome to the IEEE ISSAT Sousse AI Kiosk! Celebrating a full decade of excellence from 2014 to 2024. You can say 'Start Tour' to begin the visual presentation, or tap the microphone anytime to ask me anything about our branch and chapters.",
+        "text_fr": "Bonjour et bienvenue au kiosque IA de l'IEEE ISSAT Sousse! Célébrant une décennie d'excellence de 2014 à 2024. Dites 'Commencer' pour lancer la visite visuelle, ou utilisez le micro pour me poser toutes vos questions.",
+        "text_ar": "عسلامة ومرحباً بيك في كشك الذكاء الاصطناعي لـ IEEE ISSAT Sousse! نحتفلو بـ 10 سنين نجاح من 2014 لـ 2024. تنجم تقول 'ابدأ' بش تبدا الدورة المرئية، ولا تنزل على الميكرو وتسألني على أي حاجة في الفرع والشابترز متاعنا.",
+        "images": []
     },
-    "INTRO": {
-        "text_en": "Welcome to TSYP! I am your AI Guide for the IEEE ISSAT Sousse Student Branch, celebrating our journey from 2015 to 2025. We are more than just a technical chapter; we are a family driven by passion, support, and innovation. I can take you on a visual tour of our history, explain our upcoming Wall-E Hackathon, or answer your questions about Green Tech. Let's begin!",
-        "text_fr": "Bienvenue à TSYP! Je suis votre guide IA pour la branche étudiante IEEE ISSAT Sousse, célébrant notre parcours de 2015 à 2025. Plus qu'un simple chapitre technique, nous sommes une famille unie par la passion et l'innovation. Je peux vous faire visiter notre histoire, vous expliquer le Hackathon Wall-E, ou répondre à vos questions. Commençons!",
-        "text_ar": "عسلامة ومرحباً بيك في TSYP! أنا هو الـ AI Guide متاع فرع IEEE ISSAT Sousse، نحتفلو بمشوارنا من 2015 لـ 2025. أحنا أكثر من مجرد شابتر تقني، أحنا عائلة تجمعنا الشغف والابتكار. نجم نعملك دورة في تاريخنا، نحكيلك على WALL-E Hackathon، ولا نجاوبك على أي سؤال على الـ Green Tech. هيا نبـداو!",
-        "images": ["assets/1.png"]
+    "FOUNDATION": {
+        "title": "Our Foundation (2014)",
+        "subtitle": "Come as Students, Leave as Leaders",
+        "text_en": "Founded in 2014 at ISSAT Sousse, our student branch was born from a shared dream under the motto: 'Come as students, Leave as leaders'. For 10 years, we have empowered hundreds of engineering students, bridging university learning with real-world leadership and international IEEE networks.",
+        "text_fr": "Fondée en 2014 à l'ISSAT Sousse, notre branche étudiante est née avec la devise: 'Venez comme étudiants, partez comme leaders'. Depuis 10 ans, nous formons les futurs ingénieurs en reliant l'académie au leadership international.",
+        "text_ar": "تأسس فرعنا في 2014 في ISSAT Sousse بشعار: 'Come as students, Leave as leaders'. على مدى 10 سنين، عاونا مئات طلبة الهندسة بش يطورو مهاراتهم ويوليو قادة في تونس والعالم في شبكة IEEE العالمية.",
+        "images": ["assets/slides/page_03_img_1.jpg", "assets/slides/page_04_img_1.jpg", "assets/slides/page_05_img_1.jpg"]
     },
     "CS": {
-        "text_en": "Welcome to the Computer Society Chapter, where code meets pure creativity. We are famous for Vecna Algorithm, our dark-themed hackathon that pushes developers to their limits. We also host IEEEXtreme, the global 24-hour coding challenge where our teams compete against the world. It is a place of intense focus and innovation.",
-        "text_fr": "Bienvenue au chapitre Computer Society, où le code rencontre la créativité. Nous sommes célèbres pour Vecna Algorithm, un hackathon intense qui pousse les développeurs à leurs limites. Nous organisons aussi IEEEXtreme, le défi mondial de 24 heures. C'est un lieu d'innovation pure.",
-        "text_ar": "مرحباً بيك في CS Chapter، وين الكود يتلاقى بالإبداع. أحنا معروفين بـ Vecna Algorithm الهاكاثون المشهور متاعنا، اللي يتحدى المطورين لأقصى حد. نظمنا زادة IEEEXtreme، التحدي العالمي بو 24 ساعة. هوني وين التركيز والابتكار يصيرو.",
+        "title": "Computer Society (CS)",
+        "subtitle": "Code, Algorithms & Global Challenges",
+        "text_en": "Welcome to the Computer Society Chapter, where code turns into creative impact. We are famous for Vecna Algorithm, our dark-themed high-stakes hackathon pushing developers to their limits. We also lead IEEEXtreme, the global 24-hour coding challenge competing against the best teams worldwide.",
+        "text_fr": "Bienvenue au chapitre Computer Society! Célèbres pour le hackathon Vecna Algorithm qui pousse les développeurs à leurs limites, nous excellons aussi à l'IEEEXtreme, le défi mondial de programmation de 24 heures en compétition internationale.",
+        "text_ar": "مرحباً بيك في CS Chapter، وين البرمجة تتلاقى بالإبداع. معروفين بـ Vecna Algorithm الهاكاثون المشهور متاعنا، ونشاركو ديما في IEEEXtreme التحدي العالمي بو 24 ساعة وين نتنافسو مع أقوى المبرمجين في العالم.",
         "images": ["assets/2.png", "assets/3.png"]
     },
-    "IAS": {
-        "text_en": "The Industry Applications Society is our bridge to the professional world, focusing heavily on Industry 4.0. We explored smart automation and digital transformation deeply. A highlight was our industrial visit to Valeo, where we saw the future of automotive manufacturing and sustainable mobility in action.",
-        "text_fr": "La société Industry Applications est notre pont vers le monde professionnel, axée sur l'Industrie 4.0. Nous avons exploré l'automatisation intelligente et la transformation digitale. Notre visite à Valeo nous a montré l'avenir de la fabrication automobile.",
-        "text_ar": "الـ IAS هي القنطرة متاعنا للعالم المهني، نركزو برشا على الـ Industry 4.0. اكتشفنا الـ Automation الذكية والتحول الرقمي. زرنا شركات كبار كيما Valeo بش نشوفو مستقبل صناعة الكراهب والتنقل الذكي في تونس.",
-        "images": ["assets/4.png", "assets/5.png"]
-    },
     "RAS": {
-        "text_en": "The Robotics and Automation Society is where we turn abstract ideas into moving reality. Through our intensive Arduino workshops, we empower members to build their own embedded systems from scratch. Whether it is a simple circuit or a complex robot, this is where engineering comes to life.",
-        "text_fr": "La RAS est l'endroit où nous transformons les idées abstraites en réalité. Grâce à nos ateliers Arduino intensifs, nous apprenons aux membres à construire leurs propres systèmes embarqués. C'est ici que l'ingénierie prend vie.",
-        "text_ar": "في RAS، نحولو الأفكار لحقيقة تتحرك. بالـ Workshops متاع الـ Arduino، نعلمو الأعضاء كيفاش يبنيو الـ Systèmes متاعهم من الصفر. سواء كانت Circuit بسيطة ولا روبو معقد، هوني وين الهندسة تولي حقيقة.",
-        "images": ["assets/6.png"]
+        "title": "Robotics & Automation Society (RAS)",
+        "subtitle": "Humanoids, Embedded Systems & Innovation",
+        "text_en": "The Robotics and Automation Society turns theory into moving mechanical reality. Through intensive Arduino and embedded system workshops, members build automated systems from scratch. A milestone achievement was our humanoid NAO robotics project, winning First Edition at Tunisian Innovation Days.",
+        "text_fr": "La RAS transforme les idées en systèmes autonomes. De nos ateliers intensifs Arduino aux systèmes embarqués, nous donnons vie aux robots. Une grande fierté: notre projet humanoïde NAO a remporté la 1ère édition des Journées Tunisiennes de l'Innovation.",
+        "text_ar": "في RAS، نحولو الأفكار لروبوتات تتحرك. بالـ Workshops المكثفة في Arduino والـ Embedded Systems، الأعضاء يصنعو مشاريعهم من الصفر. ومن أهم إنجازاتنا روبوت NAO البشري اللي ربحنا بيه المرتبة الأولى في Tunisian Innovation Days.",
+        "images": ["assets/slides/page_07_img_1.jpg", "assets/slides/page_08_img_1.jpg"]
     },
     "PES": {
-        "text_en": "The Power and Energy Society hosted the massive COPX 2.0 event at ENISo. It was a gathering of brilliant minds discussing the intersection of AI, IoT, and biodiversity. We are committed to finding sustainable energy solutions that protect our planet for future generations.",
-        "text_fr": "La PES a organisé l'événement majeur COPX 2.0 à l'ENISo. C'était un rassemblement d'esprits brillants discutant de l'IA, de l'IoT et de la biodiversité. Nous nous engageons à trouver des solutions énergétiques durables.",
-        "text_ar": "PES نظمت الـ Event الكبير COPX 2.0 في ENISo. لمينا فيه الخبراء بش نحكيو على الـ AI والـ IoT والبيئة. أحنا نلوجو على حلول طاقة نظيفة بش نحافظو على الأرض للأجيال الجاية.",
-        "images": ["assets/7.png", "assets/8.png"]
+        "title": "Power & Energy Society (PES)",
+        "subtitle": "Green Tech, Renewable Energy & COPX",
+        "text_en": "The Power and Energy Society champions sustainable innovation and clean grids. We organized COPX 2.0 at ENISo, exploring AI, IoT, and biodiversity for ecological resilience. We also conduct technical expeditions to renewable wind farms to study clean energy in real environments.",
+        "text_fr": "La PES mène l'innovation durable et les énergies propres. Nous avons organisé le grand événement COPX 2.0 à l'ENISo sur l'IA, l'IoT et la biodiversité, et mené des visites techniques sur des parcs éoliens pour l'énergie renouvelable.",
+        "text_ar": "PES هي صوت الطاقة النظيفة والتنمية المستدامة. نظمنا الحدث الكبير COPX 2.0 في ENISo اللي جمع بين الـ AI والـ IoT والبيئة، وعملنا زيارات ميدانية لمحطات طاقة الرياح لتشجيع حلول الطاقة المتجددة في تونس.",
+        "images": ["assets/slides/page_09_img_1.jpg", "assets/slides/page_10_img_1.jpg"]
+    },
+    "IAS": {
+        "title": "Industry Applications Society (IAS)",
+        "subtitle": "Industry 4.0, Smart Automation & Field Trips",
+        "text_en": "The Industry Applications Society is our bridge directly into the corporate industrial world. Focusing on Industry 4.0 and digital transformation, we explore smart manufacturing through industrial visits to world leaders like Valeo and interactive automation masterclasses.",
+        "text_fr": "L'IAS est le pont direct vers le monde industriel et l'Industrie 4.0. Nous explorons l'automatisation intelligente et la transformation numérique grâce à des visites industrielles chez des géants comme Valeo.",
+        "text_ar": "IAS هي القنطرة المباشرة لسوق الشغل والـ Industry 4.0. نركزو على الأتمتة الذكية والتحول الرقمي، ونعملو زيارات صناعية لشركات عالمية كبرى كيما Valeo بش نكتشفو أحدث تقنيات التصنيع الذكي.",
+        "images": ["assets/slides/page_13_img_1.jpg", "assets/4.png"]
     },
     "WIE": {
-        "text_en": "Women in Engineering is about empowerment and community impact. We hosted the Small Business Showcase to support local creators selling art and jewelry. We also stood strong for Pinktober, raising awareness and support for breast cancer research with a dedicated stall.",
-        "text_fr": "Women in Engineering, c'est l'autonomisation et l'impact communautaire. Nous avons soutenu les créateurs locaux avec le Small Business Showcase. Nous avons aussi soutenu Pinktober pour la sensibilisation au cancer du sein.",
-        "text_ar": "WIE هي قوة النساء في الهندسة. عاونا المشاريع الصغيرة بـ Small Business Showcase وين باعو الفن والمجوهرات. وزادة وقفنا مع Pinktober بش نعاونو في التوعية ضد سرطان الثدي.",
-        "images": ["assets/9.png", "assets/10.png", "assets/11.png", "assets/12.png", "assets/13.png", "assets/14.png"]
+        "title": "Women in Engineering (WIE)",
+        "subtitle": "Empowerment, #wielead & Pinktober",
+        "text_en": "Women in Engineering is dedicated to empowering female leaders in STEM under our #wielead initiative. We created the Small Business Showcase to boost local female entrepreneurs and artisans, and we mobilize annually for Pinktober raising awareness and support for breast cancer prevention.",
+        "text_fr": "WIE soutient le leadership féminin en STEM avec notre initiative #wielead. Nous avons créé le Small Business Showcase pour soutenir les entrepreneuses locales, et nous nous mobilisons chaque année pour la sensibilisation Octobre Rose.",
+        "text_ar": "WIE هي قوة دعم المرأة في مجالات الهندسة والتكنولوجيا بمبادرة #wielead. نظمنا Small Business Showcase لدعم صانعات المشاريع المحلية، وديما حاضرين في حملات Pinktober للتوعية بسرطان الثدي.",
+        "images": ["assets/slides/page_06_img_1.jpg", "assets/slides/page_06_img_2.jpg"]
     },
     "SIGHT": {
-        "text_en": "SIGHT focuses on humanitarian technology—using our skills to help others. Our AI Gateway Workshop was designed to demystify artificial intelligence for non-technical people, showing them how these powerful tools can be used for social good and problem-solving.",
-        "text_fr": "SIGHT se concentre sur la technologie humanitaire. Notre atelier AI Gateway a été conçu pour démystifier l'intelligence artificielle pour les non-techniciens, montrant comment utiliser ces outils pour le bien social.",
-        "text_ar": "SIGHT تركز على التكنولوجيا الإنسانية. الـ AI Gateway Workshop متاعنا كان بش يفهم العباد العاديين شنوة الـ AI، وكيفاش نجمو نستعملوه للخير وحلان المشاكل الاجتماعية.",
-        "images": ["assets/15.png", "assets/16.png"]
+        "title": "Humanitarian Technology (SIGHT)",
+        "subtitle": "Tech for Good, AI Gateway & Youth STEM",
+        "text_en": "SIGHT applies engineering to solve urgent societal and humanitarian challenges. Our AI Gateway workshops demystify artificial intelligence for non-technical audiences, and we actively lead hands-on STEM and robotics sessions for young scouts to inspire the next generation of creators.",
+        "text_fr": "SIGHT met la technologie au service de l'humanité. De nos ateliers AI Gateway démystifiant l'IA pour tous, à nos sessions pratiques de robotique et de STEM avec les scouts, nous inspirons la prochaine génération.",
+        "text_ar": "SIGHT توظف الهندسة لخدمة المجتمع وحل المشاكل الإنسانية. نظمنا ورشات AI Gateway لتبسيط الذكاء الاصطناعي لعامة الناس، ونعملو دورات تدريبية في STEM والروبوتيك لشباب الكشافة والأطفال الصغار.",
+        "images": ["assets/slides/page_24_img_1.jpg", "assets/15.png"]
     },
-    "WALLE": {
-        "text_en": "Finally, let's talk about the Future: The WALL-E Hackathon. Inspired by the movie, this event tackles the pollution crisis in Gabès. It is a conception-based challenge using AI and Data—no robots required. It directly aligns with UN SDGs 3, 11, 14, and 15. Do you have any questions about it?",
-        "text_fr": "Enfin, parlons du futur: le Hackathon WALL-E. Inspiré du film, il s'attaque à la pollution à Gabès. C'est un défi de conception utilisant l'IA et les données, aligné sur les ODD de l'ONU. Avez-vous des questions?",
-        "text_ar": "أخيراً، نحكيو على المستقبل: WALL-E Hackathon. مستوحي من الفيلم، بش نحاربو التلوث في قابس. هو Challenge متاع Conception بالـ AI والـ Data، ويتبع أهداف الأمم المتحدة للتنمية المستدامة. عندكشي أي سؤال عليه؟",
-        "images": ["assets/hackathon.jpg"]
+    "COMMUNITY": {
+        "title": "Campus Life & Family Spirit",
+        "subtitle": "Integration, Retreats, Culture & Solidarity",
+        "text_en": "More than just engineering, IEEE ISSAT Sousse is a second family. We celebrate campus life through carnival integration days, outdoor mountain hikes, international cultural exchange summits, and our traditional joint Ramadan Iftar gatherings.",
+        "text_fr": "Plus qu'une branche technique, l'IEEE ISSAT Sousse est une famille unie. Nous vibrons ensemble lors de journées d'intégration festives, de randonnées en pleine nature, d'échanges culturels mondiaux et de nos iftars conviviaux de Ramadan.",
+        "text_ar": "أكثر من مجرد نادي تقني، أحنا عائلة واحدة تجمعنا روح المحبة. ننظمو أيام إدماج كرنفالية، رحلات hiking في الطبيعة، سهرات تبادل ثقافي مع وفود دولية، ولمة إفطار رمضان السنوية بين كل الأعضاء.",
+        "images": ["assets/slides/page_12_img_1.jpg", "assets/slides/page_13_img_2.jpg", "assets/slides/page_14_img_2.jpg", "assets/slides/page_23_img_1.jpg"]
+    },
+    "ACHIEVEMENTS": {
+        "title": "A Decade of Excellence & TSYP Legacy",
+        "subtitle": "TSYP 12 Challenge Winners & 10 Years Milestone",
+        "text_en": "Our journey is defined by passion and national triumphs. At TSYP 12, our delegation won the prestigious TN 2056 Challenge! In 2024, all our chapters united to celebrate our 10-Year Anniversary, honoring a decade of transformative student leadership.",
+        "text_fr": "Une décennie couronnée de triomphes! À TSYP 12, notre délégation a remporté le prestigieux TN 2056 Challenge. En 2024, tous nos chapitres se sont réunis pour célébrer nos 10 ans d'histoire et de leadership étudiant.",
+        "text_ar": "مشوارنا مليان بالنجاحات والتتويجات الوطنية. في مؤتمر TSYP 12، فرعنا ربح بجدارة تحدي TN 2056 Challenge! وفي 2024 احتفلنا بمرور 10 سنين كاملة على تأسيس الفرع وسط فخر وفرحة كل أفراد العائلة.",
+        "images": ["assets/slides/page_21_img_1.jpg", "assets/slides/page_21_img_2.jpg", "assets/slides/page_18_img_1.jpg"]
+    },
+    "UTOPIA": {
+        "title": "TSYP 13 Congress: UTOPIA Booth",
+        "subtitle": "The Future of AI & Wall-E Environmental Hackathon",
+        "text_en": "Welcome to our UTOPIA booth at TSYP 13! Our executive board is here to connect with you. Looking ahead, we are launching the WALL-E Hackathon, an AI and data-driven environmental challenge dedicated to tackling industrial pollution in Gabès aligned with UN Sustainable Development Goals.",
+        "text_fr": "Bienvenue sur notre stand UTOPIA à TSYP 13! Notre bureau exécutif est ravi de vous accueillir. Nous préparons le Hackathon WALL-E, un défi d'IA et de données pour lutter contre la crise de pollution à Gabès selon les ODD de l'ONU.",
+        "text_ar": "مرحباً بيكم في جناح UTOPIA في TSYP 13! مكتبنا التنفيذي حاضر ومرحب بيكم. ومستقبلنا متواصل مع WALL-E Hackathon، تحدي بيئي بالذكاء الاصطناعي والداتا لمعالجة مشكلة التلوث في قابس تماشياً مع أهداف التنمية المستدامة للأمم المتحدة.",
+        "images": ["assets/slides/page_22_img_1.jpg", "assets/hackathon.jpg"]
     }
 }
 
-# ==========================================
-# 2. THE CACHING SYSTEM (STRICT SAFETY)
-# ==========================================
-def raw_to_wav(pcm_data):
-    buffer = io.BytesIO()
-    with wave.open(buffer, 'wb') as wav_file:
-        wav_file.setnchannels(1)
-        wav_file.setsampwidth(2)
-        wav_file.setframerate(24000)
-        wav_file.writeframes(pcm_data)
-    return buffer.getvalue()
+CHAPTER_ORDER = [
+    "GREETING", "FOUNDATION", "CS", "RAS", "PES", 
+    "IAS", "WIE", "SIGHT", "COMMUNITY", "ACHIEVEMENTS", "UTOPIA"
+]
 
-def get_audio_cached_safe(text, filename_key):
-    filepath = os.path.join(CACHE_DIR, f"{filename_key}.wav")
-    
-    # 1. Check Cache
-    if os.path.exists(filepath):
-        with open(filepath, "rb") as f:
-            wav_data = f.read()
-        return base64.b64encode(wav_data).decode('utf-8')
+# Comprehensive Knowledge Base Context for Chat Reasoning
+FULL_BRANCH_CONTEXT = """
+OVERVIEW & IDENTITY:
+- IEEE is the world's largest technical organization for advancing technology for humanity (190+ countries, ~460k members).
+- IEEE ISSAT Sousse Student Branch (ISSATSO SB) was founded in 2014 at ISSAT Sousse (Institut Supérieur des Sciences Appliquées et de Technologie de Sousse).
+- Celebrating 10-Year Anniversary (2014 - 2024/2025). Motto: "Come as students, Leave as leaders".
+- We are currently participating in TSYP 13 (Tunisian Students & Young Professionals Congress) with our theme booth "UTOPIA".
 
-    # 2. Generate
-    print(f"   🎙️ Generating: {filename_key}...", end=" ", flush=True)
+TECHNICAL CHAPTERS & GROUPS:
+1. CS (Computer Society Chapter): Focus on computer science, AI, software. Famous for "Vecna Algorithm" (dark-themed hackathon) and annual leadership in IEEEXtreme 24h coding challenge.
+2. RAS (Robotics & Automation Society): Focus on robotics, automation, embedded systems, Arduino workshops. Developed humanoid NAO robotics project, won 1st edition at Tunisian Innovation Days.
+3. PES (Power & Energy Society): Renewable energy, smart power grids, sustainability. Organized COPX 2.0 at ENISo (AI, IoT & biodiversity), technical visits to wind turbine farms.
+4. IAS (Industry Applications Society): Industry 4.0, industrial automation, manufacturing applications, corporate bridge. Conducted industrial visits to Valeo.
+5. WIE (Women in Engineering Affinity Group): Female empowerment in STEM (#wielead), Small Business Showcase supporting local women entrepreneurs, annual Pinktober breast cancer awareness campaigns.
+6. SIGHT (Special Interest Group on Humanitarian Technology): Humanitarian engineering, technology for social good, AI Gateway workshops for non-technical audiences, STEM and robotics workshops for youth scouts.
+
+BRANCH LEADERSHIP & EXECUTIVE BOARD:
+- Chair: Leads the branch, defines overall vision/strategy, represents IEEE ISSATSO externally.
+- Vice Chair: Assists the Chair, coordinates internal chapter activities and operations.
+- General Secretary: Administrative management, documentation, records, meeting minutes.
+- Treasurer: Financial management, budgeting, sponsorships, membership fees.
+- Webmaster / IT Lead: Manages digital platforms, website, member database, and technical assets.
+- Team Leads: Media (visual branding, photography), PR (public relations, corporate partnerships), HR (human resources, onboarding), Logistics (event organization).
+
+KEY EVENTS & MILESTONES:
+- 2014: Official foundation and launch congress at ISSAT Sousse.
+- 2016: Tunisian Innovation Days 1st Edition Winner (NAO robot), 4th TSYP Congress in Hammamet.
+- 2023-2024: Winner of TN 2056 Challenge at TSYP 12!
+- 2024: 10th Anniversary Grand Celebration uniting all technical chapters.
+- 2024/2025: TSYP 13 Congress Utopia Booth & upcoming WALL-E Hackathon (AI and data-driven conception challenge targeting industrial pollution in Gabès, aligned with UN SDGs 3, 11, 14, 15).
+"""
+
+# ==============================================================================
+# 2. AUDIO SYNTHESIS ENGINE (Google Cloud TTS Live + Fallback)
+# ==============================================================================
+VOICE_MAPPING = {
+    "en": {"code": "en-US", "name": "en-US-Journey-F", "gender": "FEMALE"},
+    "fr": {"code": "fr-FR", "name": "fr-FR-Neural2-A", "gender": "FEMALE"},
+    "ar": {"code": "ar-XA", "name": "ar-XA-Wavenet-B", "gender": "MALE"}
+}
+
+def synthesize_gcp_tts(text, lang_suffix="en"):
+    """Synthesizes speech using Google Cloud Text-to-Speech API on project callout6."""
+    if not GCP_API_KEY:
+        print("⚠️ No GCP_API_KEY configured for TTS.")
+        return None
+
+    voice_info = VOICE_MAPPING.get(lang_suffix, VOICE_MAPPING["en"])
+    url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={GCP_API_KEY}"
     
-    # STRICT SAFETY: 10 seconds sleep = 6 requests per minute.
-    # This guarantees we stay under the 10 RPM limit.
-    time.sleep(10)
-    
+    payload = {
+        "input": {"text": text},
+        "voice": {
+            "languageCode": voice_info["code"],
+            "name": voice_info["name"]
+        },
+        "audioConfig": {
+            "audioEncoding": "MP3",
+            "speakingRate": 1.03,
+            "pitch": 0.0
+        }
+    }
+
     try:
-        resp = client.models.generate_content(
-            model=VOICE_MODEL, contents=text,
+        resp = requests.post(url, json=payload, timeout=12)
+        if resp.status_code == 200:
+            data = resp.json()
+            return data.get("audioContent") # Base64 MP3
+        else:
+            print(f"⚠️ GCP TTS error ({resp.status_code}): {resp.text}")
+    except Exception as e:
+        print(f"⚠️ GCP TTS exception: {e}")
+
+    return None
+
+def synthesize_vertex_tts(text, lang_suffix="en"):
+    """Fallback TTS using Vertex AI gemini-2.5-flash-tts."""
+    if not vertex_client:
+        return None
+    try:
+        resp = vertex_client.models.generate_content(
+            model="gemini-2.5-flash-tts",
+            contents=text,
             config=types.GenerateContentConfig(
-                response_modalities=["AUDIO"], 
+                response_modalities=["AUDIO"],
                 speech_config=types.SpeechConfig(
                     voice_config=types.VoiceConfig(
-                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=VOICE_NAME)
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Kore")
                     )
                 )
             )
         )
-        if resp.candidates:
-            raw_audio = resp.candidates[0].content.parts[0].inline_data.data
-            wav_data = raw_to_wav(raw_audio)
-            
-            with open(filepath, "wb") as f:
-                f.write(wav_data)
-            
-            print("✅ Done.")
-            return base64.b64encode(wav_data).decode('utf-8')
-        else:
-            print("❌ Blocked.")
-            return None
+        if resp.candidates and resp.candidates[0].content and resp.candidates[0].content.parts:
+            raw_pcm = resp.candidates[0].content.parts[0].inline_data.data
+            # Convert PCM to WAV
+            buf = io.BytesIO()
+            import wave
+            with wave.open(buf, 'wb') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(24000)
+                wf.writeframes(raw_pcm)
+            return base64.b64encode(buf.getvalue()).decode('utf-8')
     except Exception as e:
-        print(f"⚠️ Error: {e}")
-    
+        print(f"⚠️ Vertex TTS fallback error: {e}")
     return None
 
-def cache_everything_on_startup():
-    print("=======================================")
-    print("💿 STARTUP: Verifying Audio Cache")
-    print("⚠️  Mode: Strict Safety (10s delay/file)")
-    print("⏳ This will take about 6 minutes.")
-    print("=======================================")
-    
-    files_generated = 0
-    
-    for chapter, data in TOUR_DATA.items():
-        langs = [('en', data['text_en']), ('fr', data['text_fr']), ('ar', data['text_ar'])]
-        
-        for lang_code, text in langs:
-            file_key = f"{chapter}_{lang_code}"
-            
-            if not os.path.exists(os.path.join(CACHE_DIR, f"{file_key}.wav")):
-                get_audio_cached_safe(text, file_key)
-                files_generated += 1
-            else:
-                get_audio_cached_safe(text, file_key)
+def get_or_generate_audio(text, cache_key, lang_suffix):
+    """Retrieves cached audio or generates fresh audio live with zero delay."""
+    # Try MP3 cache first
+    mp3_path = os.path.join(CACHE_DIR, f"{cache_key}.mp3")
+    if os.path.exists(mp3_path):
+        with open(mp3_path, "rb") as f:
+            return base64.b64encode(f.read()).decode('utf-8'), "mp3"
 
-    print(f"\n✅ SYSTEM READY. {files_generated} new files generated.")
-    print("=======================================")
+    # Try WAV cache
+    wav_path = os.path.join(CACHE_DIR, f"{cache_key}.wav")
+    if os.path.exists(wav_path):
+        with open(wav_path, "rb") as f:
+            return base64.b64encode(f.read()).decode('utf-8'), "wav"
 
-# ==========================================
-# 3. ROUTES & LOGIC
-# ==========================================
+    # Generate live using GCP TTS
+    audio_b64 = synthesize_gcp_tts(text, lang_suffix)
+    if audio_b64:
+        with open(mp3_path, "wb") as f:
+            f.write(base64.b64decode(audio_b64))
+        return audio_b64, "mp3"
 
-# KNOWLEDGE BASE
-HISTORY_CONTEXT = """
-CHAPTER 1: IEEE ISSATSO SB (Intro)
-"IEEE ISSATSO SB (2015 - 2025) is a family. We believe in empowering each other."
-CHAPTER 2: CS Chapter (Computer Society)
-"Vecna Algorithm is our dark-themed hackathon. IEEEXtreme is our 24h challenge."
-CHAPTER 3: IAS (Industry Applications Society)
-"Focused on Industry 4.0 and Smart Automation. Visited Valeo."
-CHAPTER 4: RAS (Robotics & Automation Society)
-"Workshops on Arduino and embedded systems."
-CHAPTER 5: PES (Power & Energy Society)
-"Organized COPX 2.0 about AI, IoT, and Biodiversity."
-CHAPTER 6: WIE (Women In Engineering)
-"Small Business Showcase and Pinktober awareness."
-CHAPTER 7: SIGHT (Humanitarian Technology)
-"AI Gateway Workshop for social good."
-"""
-FUTURE_CONTEXT = """
-CHAPTER FUTURE: WALL-E Hackathon
-"Environmental innovation event for Gabès pollution using AI/Data."
-"""
+    # Fallback to Vertex AI TTS
+    audio_wav_b64 = synthesize_vertex_tts(text, lang_suffix)
+    if audio_wav_b64:
+        with open(wav_path, "wb") as f:
+            f.write(base64.b64decode(audio_wav_b64))
+        return audio_wav_b64, "wav"
+
+    return None, None
+
+def preheat_tour_cache():
+    """Generates tour audio fast on startup with Google Cloud TTS."""
+    print("==================================================")
+    print("🚀 INITIALIZING: Audio Tour Pre-warming (GCP TTS Live)")
+    count = 0
+    for chapter in CHAPTER_ORDER:
+        data = TOUR_DATA[chapter]
+        for lang_code in ['en', 'fr', 'ar']:
+            key = f"{chapter}_{lang_code}"
+            text = data[f"text_{lang_code}"]
+            mp3_file = os.path.join(CACHE_DIR, f"{key}.mp3")
+            if not os.path.exists(mp3_file):
+                print(f"   🎙️ Preheating {key}...", end=" ", flush=True)
+                audio_b64 = synthesize_gcp_tts(text, lang_code)
+                if audio_b64:
+                    with open(mp3_file, "wb") as f:
+                        f.write(base64.b64decode(audio_b64))
+                    print("✅")
+                    count += 1
+                else:
+                    print("⚠️ Skipped")
+    print(f"✨ Tour Cache Ready! ({count} new files generated).")
+    print("==================================================")
+
+# ==============================================================================
+# 3. ROUTES & API ENDPOINTS
+# ==============================================================================
 
 @app.route('/get_tour_data', methods=['POST'])
 def get_tour_data():
-    lang = request.json.get('lang', 'en')
+    req_data = request.json or {}
+    lang = req_data.get('lang', 'en')
+    
     suffix = 'en'
     if 'ar' in lang: suffix = 'ar'
     elif 'fr' in lang: suffix = 'fr'
-    
+
     tour_package = []
-    chapter_order = ["GREETING", "INTRO", "CS", "IAS", "RAS", "PES", "WIE", "SIGHT", "WALLE"]
-    
-    for chapter in chapter_order:
-        raw_text = TOUR_DATA[chapter][f'text_{suffix}']
-        audio_b64 = get_audio_cached_safe(raw_text, f"{chapter}_{suffix}")
+    for chapter_id in CHAPTER_ORDER:
+        ch = TOUR_DATA[chapter_id]
+        raw_text = ch[f"text_{suffix}"]
+        cache_key = f"{chapter_id}_{suffix}"
+        
+        audio_b64, audio_fmt = get_or_generate_audio(raw_text, cache_key, suffix)
         
         tour_package.append({
-            "id": chapter,
+            "id": chapter_id,
+            "title": ch.get("title", chapter_id),
+            "subtitle": ch.get("subtitle", ""),
             "text": raw_text,
             "audio": audio_b64,
-            "images": TOUR_DATA[chapter]['images']
+            "audio_format": audio_fmt or "mp3",
+            "images": ch.get("images", [])
         })
-        
-    return jsonify({"tour": tour_package})
+
+    return jsonify({"tour": tour_package, "lang": suffix})
 
 @app.route('/chat_router', methods=['POST'])
 def chat_router():
-    data = request.json
-    user_text = data.get('text', '')
+    data = request.json or {}
+    user_text = data.get('text', '').strip()
     lang = data.get('lang', 'en')
-    current_chapter = data.get('chapter', 'GENERAL') 
-    
-    # 0. GET CONTEXT (Short-term memory of the slide)
-    # This helps the AI answer "What did you just say?"
-    context_text = TOUR_DATA.get(current_chapter, {}).get('text_en', '')
+    current_chapter = data.get('chapter', 'GREETING')
 
-    # 1. CLASSIFY INTENT
-    sys_prompt = f"""
-    User Input: "{user_text}"
+    if not user_text:
+        return jsonify({"error": "Empty input"}), 400
+
+    suffix = 'en'
+    if 'ar' in lang: suffix = 'ar'
+    elif 'fr' in lang: suffix = 'fr'
+
+    slide_info = TOUR_DATA.get(current_chapter, {})
+    current_slide_text = slide_info.get(f'text_{suffix}', slide_info.get('text_en', ''))
+
+    # Step 1: Intent Classification via Vertex AI
+    classifier_prompt = f"""
+    The user is visiting an interactive museum AI Kiosk for IEEE ISSAT Sousse Student Branch at TSYP 13.
+    User Query: "{user_text}"
     Current View: {current_chapter}
-    Slide Info: "{context_text}"
-    
-    Knowledge:
-    {HISTORY_CONTEXT}
-    {FUTURE_CONTEXT}
-    
-    Task: Classify Intent.
-    - "TOUR": If user EXPLICITLY asks to start the presentation.
-      Keywords: "start", "begin", "show me history", "commencer", "visite", "abda", "ebda", "bda", "joula".
-      
-    - "CHAT": If user asks a question about the current slide, the club, or details.
-    
-    Output only: TOUR or CHAT
+
+    Task: Determine if the user is asking to start/continue the visual tour presentation, OR asking a general/specific question.
+    - If user explicitly says words meaning "start tour", "begin presentation", "show slides", "commencer la visite", "lance la présentation", "ebda el tour", "abda", "bda", "joula", classify as TOUR.
+    - If user is asking a question, asking for clarification, greeting, or discussing IEEE, chapters, team, robotics, AI, or anything else, classify as CHAT.
+
+    Respond with ONLY one word: TOUR or CHAT.
     """
-    
-    try:
-        # Ask Brain: "What does the user want?"
-        resp = client.models.generate_content(model=BRAIN_MODEL, contents=sys_prompt)
-        decision = resp.text.strip().upper().replace(" ", "")
-    except:
-        decision = "CHAT"
-    
-    # 2. ACT ON DECISION
-    # If Brain says TOUR, we STOP here and tell the frontend to switch modes.
+
+    decision = "CHAT"
+    if vertex_client:
+        try:
+            c_resp = vertex_client.models.generate_content(
+                model=BRAIN_MODEL,
+                contents=classifier_prompt
+            )
+            decision = c_resp.text.strip().upper()
+        except Exception as e:
+            print(f"Classifier error: {e}")
+
     if "TOUR" in decision:
         return jsonify({"mode": "TOUR"})
-    
-    # 3. GENERATE CHAT ANSWER (Only if it wasn't a Tour)
+
+    # Step 2: Intelligent Conversational Response
+    lang_instruction = {
+        "en": "Answer in clear, engaging English.",
+        "fr": "Answer in natural, professional French.",
+        "ar": "Answer in friendly, natural Tunisian Arabic (using Arabic script or Arabizi as natural for conversational audio)."
+    }.get(suffix, "Answer in clear English.")
+
     answer_prompt = f"""
-    You are the AI Guide for IEEE ISSAT Sousse.
+    You are the official Interactive AI Guide for IEEE ISSAT Sousse Student Branch at the TSYP 13 Congress.
     
-    CONTEXT: The user is currently looking at the '{current_chapter}' slide.
-    
-    [WHAT YOU JUST TOLD THE USER (Slide Script)]:
-    "{context_text}"
-    
-    [Specific Knowledge]:
-    {HISTORY_CONTEXT}
-    {FUTURE_CONTEXT}
-    
+    KNOWLEDGE BASE:
+    {FULL_BRANCH_CONTEXT}
+
+    CURRENT SLIDE BEING VIEWED BY USER:
+    Chapter: {current_chapter}
+    Slide Script: "{current_slide_text}"
+
+    USER QUESTION:
+    "{user_text}"
+
     INSTRUCTIONS:
-    1. If the user asks about something mentioned in the [Slide Script], explain it further.
-    2. If the question is General (e.g., "What is AI?"), use your own knowledge.
-    
-    User Question: "{user_text}"
-    Language: {lang} (Use Arabizi if 'ar').
-    Constraint: Answer in 2 short sentences. Be helpful and confident.
+    1. If the user asks about the branch, chapters, history, NAO robot, Vecna Algorithm, COPX, Valeo, TSYP 12 win, or executive board, provide an accurate and inspiring response using the knowledge base.
+    2. If the user asks a follow-up about the current slide, explain with high relevance.
+    3. Keep your response concise: 2 to 3 sentences maximum. Perfect for spoken audio!
+    4. Maintain an enthusiastic, welcoming, and knowledgeable tone.
+    5. {lang_instruction}
     """
-    
-    try:
-        # A. Get Text Answer
-        chat_resp = client.models.generate_content(model=BRAIN_MODEL, contents=answer_prompt)
-        
-        # Safety Check for Empty Content
-        if not chat_resp.candidates or not chat_resp.candidates[0].content or not chat_resp.candidates[0].content.parts:
-            ai_text = "Désolé, je ne peux pas répondre." if lang == 'fr' else "Sorry, I cannot answer that."
-        else:
-            ai_text = chat_resp.text
 
-        # B. Get Audio
-        audio_b64 = None
+    ai_reply_text = ""
+    if vertex_client:
         try:
-            t_resp = client.models.generate_content(
-                model=VOICE_MODEL, contents=ai_text,
-                config=types.GenerateContentConfig(
-                    response_modalities=["AUDIO"], 
-                    speech_config=types.SpeechConfig(
-                        voice_config=types.VoiceConfig(
-                            prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=VOICE_NAME)
-                        )
-                    )
-                )
+            ans_resp = vertex_client.models.generate_content(
+                model=BRAIN_MODEL,
+                contents=answer_prompt
             )
-            # CRITICAL FIX: Check if content actually exists before accessing .parts
-            if (t_resp.candidates and t_resp.candidates[0].content and t_resp.candidates[0].content.parts):
-                raw_audio = t_resp.candidates[0].content.parts[0].inline_data.data
-                audio_b64 = base64.b64encode(raw_to_wav(raw_audio)).decode('utf-8')
+            if ans_resp.candidates and ans_resp.candidates[0].content and ans_resp.candidates[0].content.parts:
+                ai_reply_text = ans_resp.text.strip()
         except Exception as e:
-            print(f"TTS Error: {e}")
+            print(f"Chat generation error: {e}")
 
-        return jsonify({"mode": "CHAT", "response": ai_text, "audio": audio_b64})
+    if not ai_reply_text:
+        fallbacks = {
+            "en": "I'm here to help! You can ask me about our 10-year history, our chapters like CS and RAS, or say 'Start Tour' to explore.",
+            "fr": "Je suis à votre disposition! Vous pouvez me poser des questions sur nos 10 ans d'histoire ou dire 'Commencer' pour la visite.",
+            "ar": "أنا لهنا بش نعاونك! تنجم تسألني على تاريخنا ولا الشابترز كيما CS و RAS، ولا قول 'ابدأ' بش تشوف الدورة."
+        }
+        ai_reply_text = fallbacks.get(suffix, fallbacks["en"])
 
-    except Exception as e:
-        return jsonify({"error": str(e)})
+    # Step 3: Real-Time Live Speech Synthesis
+    audio_b64 = synthesize_gcp_tts(ai_reply_text, suffix)
+    audio_fmt = "mp3"
+    if not audio_b64:
+        audio_b64 = synthesize_vertex_tts(ai_reply_text, suffix)
+        audio_fmt = "wav"
+
+    return jsonify({
+        "mode": "CHAT",
+        "response": ai_reply_text,
+        "audio": audio_b64,
+        "audio_format": audio_fmt
+    })
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({
+        "status": "healthy",
+        "project": GCP_PROJECT,
+        "location": GCP_LOCATION,
+        "vertex_ai": vertex_client is not None,
+        "gcp_tts": bool(GCP_API_KEY)
+    })
 
 @app.route('/')
-def serve_index(): return send_from_directory('.', 'index.html')
+def serve_index():
+    return send_from_directory('.', 'index.html')
+
 @app.route('/<path:path>')
-def serve_static(path): return send_from_directory('.', path)
+def serve_static(path):
+    return send_from_directory('.', path)
 
 if __name__ == '__main__':
-    cache_everything_on_startup()
-    app.run(port=5000, debug=True)
+    preheat_tour_cache()
+    PORT = int(os.getenv("PORT", 5005))
+    print(f"🚀 TSYP AI Kiosk running live on: http://localhost:{PORT}")
+    app.run(host='0.0.0.0', port=PORT, debug=False)
