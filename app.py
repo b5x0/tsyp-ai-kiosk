@@ -1,12 +1,6 @@
 import os
-import io
 import json
-import base64
 import re
-import asyncio
-import wave
-import requests
-import edge_tts
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -35,13 +29,9 @@ except Exception as e:
     print(f"⚠️ Warning: Could not initialize Vertex AI client: {e}")
 
 BRAIN_MODEL = "gemini-2.5-flash"
-CACHE_DIR = "audio_cache"
-if not os.path.exists(CACHE_DIR):
-    os.makedirs(CACHE_DIR)
 
 # ==============================================================================
 # 1. 14 ARCHIPELAGO ISLANDS / NODES (TSYP 14 CONGRESS - YEAR 2026)
-# Strict 3-5 Second Audio Length Policy (~10-14 words max per introductory prompt)
 # ==============================================================================
 TOUR_DATA = {
     "CORE": {
@@ -49,10 +39,10 @@ TOUR_DATA = {
         "title": "UTOPIA Sanctuary",
         "subtitle": "TSYP 14 Congress • 2026",
         "badge": "MAIN HUB",
-        "x": 50, "y": 48, # Coordinates on Archipelago Map (% relative)
-        "text_en": "Welcome to the IEEE ISSAT Sousse AI Sanctuary at TSYP 14! Tap any island to explore.",
-        "text_fr": "Bienvenue au sanctuaire IA de l'IEEE ISSAT Sousse à TSYP 14 ! Touchez une île pour explorer.",
-        "text_ar": "عسلامة ومرحباً بيكم في جناح IEEE ISSAT Sousse في TSYP 14! اختار أي جزيرة بش تكتشفها.",
+        "x": 50, "y": 48,
+        "text_en": "Welcome to the IEEE ISSAT Sousse AI Sanctuary at TSYP 14! Explore our chapters, 12-year history, and world-class innovations.",
+        "text_fr": "Bienvenue au sanctuaire IA de l'IEEE ISSAT Sousse à TSYP 14 ! Découvrez nos chapitres, 12 ans d'histoire et nos innovations.",
+        "text_ar": "عسلامة ومرحباً بيكم في جناح IEEE ISSAT Sousse في TSYP 14! تفضلوا باكتشاف نوادينا وإنجازاتنا على مدار 12 سنة.",
         "images": ["assets/icon.png", "assets/slides/page_22_img_1.jpg"]
     },
     "FOUNDATION": {
@@ -224,226 +214,7 @@ TECHNICAL CHAPTERS & GROUPS (14 NODES):
 """
 
 # ==============================================================================
-# 2. PHONETIC NORMALIZATION & MULTILINGUAL CONVERSATIONAL VOICE ENGINE
-# ==============================================================================
-
-PHONETIC_MAP_AR = [
-    (r"\bIEEE ISSAT Sousse\b", "آي تريبل إي عيسات سوسة"),
-    (r"\bIEEE\b", "آي تريبل إي"),
-    (r"\bISSAT Sousse\b", "عيسات سوسة"),
-    (r"\bISSATSO\b", "عيسات سوسة"),
-    (r"\bISSAT\b", "عيسات"),
-    (r"\bTSYP 14\b", "تي إس واي بي 14"),
-    (r"\bTSYP 13\b", "تي إس واي بي 14"),
-    (r"\bTSYP 12\b", "تي إس واي بي 12"),
-    (r"\bTSYP\b", "تي إس واي بي"),
-    (r"\bCS Chapter\b", "شابتر السي إس"),
-    (r"\bCS\b", "سي إس"),
-    (r"\bRAS\b", "راس"),
-    (r"\bPES\b", "بي إي إس"),
-    (r"\bIAS\b", "آي إيه إس"),
-    (r"\bWIE\b", "دبليو آي إي"),
-    (r"\b#wielead\b", "وي ليد"),
-    (r"\bSIGHT\b", "سايت"),
-    (r"\bUTOPIA\b", "أوتوبيا"),
-    (r"\bVecna Algorithm\b", "فيكنا ألغوريثم"),
-    (r"\bVecna\b", "فيكنا"),
-    (r"\bIEEEXtreme\b", "آي إكستريم"),
-    (r"\bNAO\b", "ناو"),
-    (r"\bArduino\b", "أردوينو"),
-    (r"\bEmbedded Systems\b", "أنظمة مدمجة"),
-    (r"\bWorkshops\b", "ورشات"),
-    (r"\bworkshops\b", "ورشات"),
-    (r"\bCOPX 2\.0\b", "كوب إكس 2.0"),
-    (r"\bCOPX\b", "كوب إكس"),
-    (r"\bENISo\b", "إينيزو"),
-    (r"\bIndustry 4\.0\b", "إندستري 4.0"),
-    (r"\bValeo\b", "فاليو"),
-    (r"\bPinktober\b", "بينكتوبر"),
-    (r"\bAI Gateway\b", "إي آي غايتواي"),
-    (r"\bSTEM\b", "ستيم"),
-    (r"\bhiking\b", "هايكينغ"),
-    (r"\bTN 2056 Challenge\b", "تحدي تونس 2056"),
-    (r"\bTN 2056\b", "تونس 2056"),
-    (r"\bWALL-E Hackathon\b", "هاكاثون وول إي"),
-    (r"\bWall-E Hackathon\b", "هاكاثون وول إي"),
-    (r"\bWALL-E\b", "وول إي"),
-    (r"\bWall-E\b", "وول إي"),
-    (r"\bHackathon\b", "هاكاثون"),
-    (r"\bhackathon\b", "هاكاثون"),
-    (r"\bAI\b", "ذكاء اصطناعي"),
-    (r"\bIoT\b", "إنترنت الأشياء"),
-    (r"\bTunisian Innovation Days\b", "تونيزيان إينوفايشن دايز")
-]
-
-def clean_for_speech(text, lang="ar"):
-    """Strips markdown and normalizes acronyms so voices speak naturally without spelling characters."""
-    if not text:
-        return ""
-    # Strip markdown symbols
-    cleaned = re.sub(r"[\*\_#`]", "", text)
-    if lang == "ar":
-        cleaned = re.sub(r"\([A-Za-z0-9\s\-]+\)", "", cleaned)
-        for pattern, replacement in PHONETIC_MAP_AR:
-            cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
-    elif lang == "en":
-        cleaned = re.sub(r"\bIEEE ISSAT Sousse\b", "I-triple-E ISSAT Sousse", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\bIEEE\b", "I-triple-E", cleaned)
-        cleaned = re.sub(r"\bISSAT Sousse\b", "Issat Sousse", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\bISSATSO\b", "Issat Sousse", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\bTSYP 14\b", "T-S-Y-P 14", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\bTSYP\b", "T-S-Y-P", cleaned)
-        cleaned = re.sub(r"\bCS\b", "Computer Society", cleaned)
-        cleaned = re.sub(r"\bRAS\b", "Robotics and Automation Society", cleaned)
-        cleaned = re.sub(r"\bPES\b", "Power and Energy Society", cleaned)
-        cleaned = re.sub(r"\bIAS\b", "Industry Applications Society", cleaned)
-        cleaned = re.sub(r"\bWIE\b", "Women in Engineering", cleaned)
-        cleaned = re.sub(r"\bSIGHT\b", "Sight", cleaned)
-    elif lang == "fr":
-        cleaned = re.sub(r"\bl\x27IEEE ISSAT Sousse\b", "l'I triple E ISSAT Sousse", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\bl\x27IEEE\b", "l'I triple E", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\bIEEE\b", "I triple E", cleaned)
-        cleaned = re.sub(r"\bISSAT Sousse\b", "Issat Sousse", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\bISSATSO\b", "Issat Sousse", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\bTSYP 14\b", "T-S-Y-P 14", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\bTSYP\b", "T-S-Y-P", cleaned)
-        cleaned = re.sub(r"\bCS\b", "Computer Society", cleaned)
-        cleaned = re.sub(r"\bRAS\b", "R-A-S", cleaned)
-        cleaned = re.sub(r"\bPES\b", "P-E-S", cleaned)
-        cleaned = re.sub(r"\bIAS\b", "I-A-S", cleaned)
-        cleaned = re.sub(r"\bWIE\b", "W-I-E", cleaned)
-        cleaned = re.sub(r"\bSIGHT\b", "Sight", cleaned)
-    return re.sub(r"\s+", " ", cleaned).strip()
-
-VOICE_CONFIG = {
-    "ar": "ar-TN-HediNeural",
-    "en": "en-US-AndrewMultilingualNeural",
-    "fr": "fr-FR-VivienneMultilingualNeural"
-}
-
-def synthesize_neural_voice(text, lang_suffix="en"):
-    """Synthesizes high-fidelity regional speech using edge-tts (Fallback engine)."""
-    voice = VOICE_CONFIG.get(lang_suffix, VOICE_CONFIG["en"])
-    speech_text = clean_for_speech(text, lang_suffix)
-
-    async def _generate():
-        communicate = edge_tts.Communicate(speech_text, voice)
-        stream = bytearray()
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                stream.extend(chunk["data"])
-        return bytes(stream)
-
-    try:
-        loop = asyncio.new_event_loop()
-        audio_data = loop.run_until_complete(_generate())
-        loop.close()
-        if audio_data and len(audio_data) > 0:
-            return base64.b64encode(audio_data).decode('utf-8'), "mp3"
-    except Exception as e:
-        print(f"⚠️ Neural TTS Error ({voice}): {e}")
-
-    return None, None
-
-def synthesize_vertex_gemini_voice(text, lang_suffix="en"):
-    """Synthesizes conversational, human-sounding speech using Vertex AI gemini-2.5-flash-tts.
-    Voices:
-      - Puck: Upbeat, lively, warm conversational podcast/guide style (EN)
-      - Aoede: Natural, relaxed, fluent female voice (FR & AR)
-    """
-    if not vertex_client:
-        return None, None
-    try:
-        voice_map = {
-            "en": "Puck",
-            "fr": "Aoede",
-            "ar": "Aoede"
-        }
-        voice_name = voice_map.get(lang_suffix, "Puck")
-        speech_text = clean_for_speech(text, lang_suffix)
-        
-        resp = vertex_client.models.generate_content(
-            model="gemini-2.5-flash-tts",
-            contents=speech_text,
-            config=types.GenerateContentConfig(
-                response_modalities=["AUDIO"],
-                speech_config=types.SpeechConfig(
-                    voice_config=types.VoiceConfig(
-                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice_name)
-                    )
-                )
-            )
-        )
-        if resp.candidates and resp.candidates[0].content and resp.candidates[0].content.parts:
-            raw_pcm = resp.candidates[0].content.parts[0].inline_data.data
-            buf = io.BytesIO()
-            with wave.open(buf, 'wb') as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(24000)
-                wf.writeframes(raw_pcm)
-            return base64.b64encode(buf.getvalue()).decode('utf-8'), "wav"
-    except Exception as e:
-        print(f"⚠️ Vertex Gemini Voice error: {e}")
-    return None, None
-
-def get_or_generate_audio(text, cache_key, lang_suffix):
-    """Retrieves cached audio or generates fresh audio live with zero delay.
-    Prioritizes Gemini 2.5 Flash TTS for ultra-natural human conversational voice.
-    """
-    # 1. Check WAV cache (Gemini-TTS)
-    wav_path = os.path.join(CACHE_DIR, f"{cache_key}.wav")
-    if os.path.exists(wav_path):
-        with open(wav_path, "rb") as f:
-            return base64.b64encode(f.read()).decode('utf-8'), "wav"
-
-    # 2. Check MP3 cache
-    mp3_path = os.path.join(CACHE_DIR, f"{cache_key}.mp3")
-    if os.path.exists(mp3_path):
-        with open(mp3_path, "rb") as f:
-            return base64.b64encode(f.read()).decode('utf-8'), "mp3"
-
-    # 3. PRIMARY: Google Vertex AI Gemini-TTS
-    audio_b64, fmt = synthesize_vertex_gemini_voice(text, lang_suffix)
-    if audio_b64:
-        with open(wav_path, "wb") as f:
-            f.write(base64.b64decode(audio_b64))
-        return audio_b64, "wav"
-
-    # 4. FALLBACK: Neural Voice (Edge-TTS)
-    audio_b64, fmt = synthesize_neural_voice(text, lang_suffix)
-    if audio_b64:
-        with open(mp3_path, "wb") as f:
-            f.write(base64.b64decode(audio_b64))
-        return audio_b64, "mp3"
-
-    return None, None
-
-def preheat_tour_cache():
-    """Pre-generates concise 3-5s tour audio for all 14 archipelago nodes using Gemini Flash TTS."""
-    print("==================================================")
-    print("🚀 INITIALIZING: Audio Tour Pre-warming with Gemini-TTS (14 Nodes)")
-    count = 0
-    for node_id in CHAPTER_ORDER:
-        data = TOUR_DATA[node_id]
-        for lang_code in ['en', 'fr', 'ar']:
-            key = f"{node_id}_{lang_code}"
-            text = data[f"text_{lang_code}"]
-            wav_file = os.path.join(CACHE_DIR, f"{key}.wav")
-            mp3_file = os.path.join(CACHE_DIR, f"{key}.mp3")
-            if not os.path.exists(wav_file) and not os.path.exists(mp3_file):
-                print(f"   🎙️ Synthesizing {key} with Gemini-TTS...", end=" ", flush=True)
-                audio_b64, _ = get_or_generate_audio(text, key, lang_code)
-                if audio_b64:
-                    print("✅")
-                    count += 1
-                else:
-                    print("⚠️ Failed")
-    print(f"✨ Tour Cache Ready! ({count} ultra-concise files generated).")
-    print("==================================================")
-
-# ==============================================================================
-# 3. ROUTES & API ENDPOINTS
+# 2. ROUTES & API ENDPOINTS (LIGHTWEIGHT & ULTRA-FAST)
 # ==============================================================================
 
 @app.route('/get_islands', methods=['GET', 'POST'])
@@ -460,9 +231,6 @@ def get_tour_data():
     for node_id in CHAPTER_ORDER:
         node = TOUR_DATA[node_id]
         raw_text = node[f"text_{suffix}"]
-        cache_key = f"{node_id}_{suffix}"
-        
-        audio_b64, audio_fmt = get_or_generate_audio(raw_text, cache_key, suffix)
         
         islands_package.append({
             "id": node_id,
@@ -473,8 +241,6 @@ def get_tour_data():
             "x": node.get("x", 50),
             "y": node.get("y", 50),
             "text": raw_text,
-            "audio": audio_b64,
-            "audio_format": audio_fmt or "mp3",
             "images": node.get("images", [])
         })
 
@@ -488,7 +254,7 @@ def chat_router():
     current_node = data.get('chapter', 'CORE')
 
     if not user_text:
-        return jsonify({"error": "Empty voice input"}), 400
+        return jsonify({"error": "Empty question"}), 400
 
     suffix = 'en'
     if 'ar' in lang: suffix = 'ar'
@@ -497,17 +263,16 @@ def chat_router():
     node_info = TOUR_DATA.get(current_node, {})
     current_node_text = node_info.get(f'text_{suffix}', node_info.get('text_en', ''))
 
-    # Strict prompt policy: Concise 1-2 sentences maximum (< 25 words) for natural speech
     lang_instruction = {
-        "en": "Answer in exactly 1 to 2 short, punchy sentences in natural conversational English. Never exceed 25 words.",
-        "fr": "Répondez en 1 ou 2 phrases courtes et percutantes en français naturel. Moins de 25 mots au total.",
-        "ar": """جاوب في جملة أو جملتين قصار برشا بتونسي طبيعي وواضح (تونسي قح ومفهوم). 
-أقصى حد 20 كلمة. 
-مهم جداً: اكتب أسماء المنظمات والنوادي والمسابقات بالحروف اللاتينية والإنجليزية كما هي (مثال: IEEE, ISSAT Sousse, TSYP 14, CS, RAS, PES, IAS, WIE, SIGHT, AI, NAO, Hackathon) ولا تكتبها بحروف عربية إطلاقاً."""
+        "en": "Answer in 1 to 2 clear, engaging sentences in natural English. Keep it under 35 words.",
+        "fr": "Répondez en 1 ou 2 phrases claires et dynamiques en français. Moins de 35 mots.",
+        "ar": """جاوب في جملة أو جملتين واضحة ومباشرة بالدارجة التونسية المفهومة.
+أقصى حد 30 كلمة.
+مهم جداً: اكتب أسماء المنظمات والنوادي والمسابقات والمصطلحات التقنية بالحروف اللاتينية والإنجليزية كما هي (مثال: IEEE, ISSAT Sousse, TSYP 14, CS, RAS, PES, IAS, WIE, SIGHT, AI, NAO, Hackathon, WALL-E) ولا تكتبها بحروف عربية إطلاقاً."""
     }.get(suffix, "Answer in 1 to 2 short conversational sentences.")
 
     answer_prompt = f"""
-    You are the official Interactive AI Guide for IEEE ISSAT Sousse Student Branch at TSYP 14 in 2026.
+    You are the official Interactive Digital AI Curator for IEEE ISSAT Sousse Student Branch at TSYP 14 in 2026.
     
     KNOWLEDGE BASE:
     {FULL_BRANCH_CONTEXT}
@@ -516,12 +281,12 @@ def chat_router():
     Node: {current_node} ({node_info.get('title', '')})
     Context: "{current_node_text}"
 
-    USER SPOKEN QUERY:
+    VISITOR QUESTION:
     "{user_text}"
 
     STRICT CONVERSATIONAL POLICY:
-    1. Answer the question accurately and enthusiastically.
-    2. STRICT CONSTRAINT: Exactly 1 to 2 short sentences (UNDER 25 WORDS TOTAL). Perfect for spoken audio!
+    1. Answer the question accurately, concisely, and enthusiastically.
+    2. STRICT CONSTRAINT: Exactly 1 to 2 short sentences (UNDER 35 WORDS TOTAL) formatted for on-screen digital display.
     3. Year is 2026. Event is TSYP 14. 12-Year Anniversary (2014-2026).
     4. ACRONYMS & PROPER NOUNS: ALL organization names, technical terms, and acronyms (IEEE, ISSAT Sousse, TSYP 14, CS, RAS, PES, IAS, WIE, SIGHT, AI, NAO, Hackathon, WALL-E) MUST strictly remain in English/Latin letters. Never transcribe them into Arabic letters.
     5. {lang_instruction}
@@ -541,22 +306,15 @@ def chat_router():
 
     if not ai_reply_text:
         fallbacks = {
-            "en": "I'm your IEEE ISSAT Sousse AI Guide at TSYP 14! Ask me about any of our chapters.",
-            "fr": "Je suis votre guide IA IEEE ISSAT Sousse à TSYP 14 ! Posez-moi vos questions.",
+            "en": "IEEE ISSAT Sousse celebrates 12 years of excellence at TSYP 14! Explore our technical achievements and projects.",
+            "fr": "L'IEEE ISSAT Sousse célèbre 12 ans d'excellence à TSYP 14 ! Découvrez nos projets et nos réussites.",
             "ar": "أنا مرشدك الذكي في IEEE ISSAT Sousse في TSYP 14! اسألني على أي نادي أو مشروع."
         }
         ai_reply_text = fallbacks.get(suffix, fallbacks["en"])
 
-    # Real-Time Live Speech Synthesis (Gemini Conversational Voice as Primary)
-    audio_b64, audio_fmt = synthesize_vertex_gemini_voice(ai_reply_text, suffix)
-    if not audio_b64:
-        audio_b64, audio_fmt = synthesize_neural_voice(ai_reply_text, suffix)
-
     return jsonify({
         "mode": "CHAT",
-        "response": ai_reply_text,
-        "audio": audio_b64,
-        "audio_format": audio_fmt or "mp3"
+        "response": ai_reply_text
     })
 
 @app.route('/health', methods=['GET'])
@@ -569,7 +327,7 @@ def health():
         "event": "TSYP 14",
         "total_nodes": len(TOUR_DATA),
         "vertex_ai": vertex_client is not None,
-        "neural_tts": True
+        "mode": "text_kiosk"
     })
 
 @app.route('/')
@@ -581,7 +339,6 @@ def serve_static(path):
     return send_from_directory('.', path)
 
 if __name__ == '__main__':
-    preheat_tour_cache()
     PORT = int(os.getenv("PORT", 5005))
     print(f"🚀 TSYP AI Kiosk running live on: http://localhost:{PORT}")
     app.run(host='0.0.0.0', port=PORT, debug=False)

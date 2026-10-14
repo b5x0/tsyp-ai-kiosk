@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
     <!-- Background Starfall & Cosmic Glow -->
@@ -49,7 +49,7 @@
                 <p class="hero-subtitle">12 Years of Innovation (2014 – 2026) • UTOPIA Digital Archipelago</p>
             </div>
 
-            <!-- Central Holographic Voice Orb (Opens Language Selection Portal) -->
+            <!-- Central Holographic Orb (Opens Language Selection Portal) -->
             <div class="hero-orb-wrap" onclick="openLangModal()">
                 <div class="orb-container">
                     <div class="energy-ring ring-1"></div>
@@ -70,7 +70,7 @@
         </div>
     </section>
 
-    <!-- Language Selection Portal Modal (Fancy pop-out on orb tap) -->
+    <!-- Language Selection Portal Modal -->
     <div id="lang-modal-overlay" class="lang-modal-overlay hidden">
         <div class="lang-modal-backdrop" onclick="closeLangModal()"></div>
         <div class="lang-modal-card">
@@ -89,8 +89,8 @@
                     <div class="lang-card-flag">🇬🇧</div>
                     <div class="lang-card-info">
                         <h3 class="lang-card-name">English</h3>
-                        <p class="lang-card-desc">Conversational Guide • Global Voice</p>
-                        <span class="lang-card-tag">Puck AI Guide</span>
+                        <p class="lang-card-desc">Digital Kiosk • Interactive AI Guide</p>
+                        <span class="lang-card-tag">Gemini 2.5 Intelligence</span>
                     </div>
                     <div class="lang-card-arrow">➜</div>
                 </div>
@@ -101,8 +101,8 @@
                     <div class="lang-card-flag">🇹🇳</div>
                     <div class="lang-card-info">
                         <h3 class="lang-card-name">تونسي / Derja</h3>
-                        <p class="lang-card-desc">الدليل الذكي بالدارجة التونسية</p>
-                        <span class="lang-card-tag">صوت طبيعي دافئ</span>
+                        <p class="lang-card-desc">الدليل الذكي التفاعلي بالدارجة التونسية</p>
+                        <span class="lang-card-tag">ذكاء اصطناعي تفاعلي</span>
                     </div>
                     <div class="lang-card-arrow">➜</div>
                 </div>
@@ -112,15 +112,15 @@
                     <div class="lang-card-flag">🇫🇷</div>
                     <div class="lang-card-info">
                         <h3 class="lang-card-name">Français</h3>
-                        <p class="lang-card-desc">Visite Vocale Guidée • Mode IA</p>
-                        <span class="lang-card-tag">Voix Naturelle Aoede</span>
+                        <p class="lang-card-desc">Kiosque Numérique • Guide Interactif</p>
+                        <span class="lang-card-tag">Intelligence Gemini 2.5</span>
                     </div>
                     <div class="lang-card-arrow">➜</div>
                 </div>
             </div>
 
             <div class="modal-footer-hint">
-                <span>✨ 14 Interactive Islands • Natural Conversational Audio • TSYP 14</span>
+                <span>✨ 14 Interactive Islands • Digital Touchscreen Kiosk • TSYP 14</span>
             </div>
         </div>
     </div>
@@ -131,7 +131,7 @@
             <div class="map-title-row">
                 <span class="map-badge">INTERACTIVE ARCHIPELAGO</span>
                 <h2 class="map-title">Explore 14 Connected Nodes</h2>
-                <p class="map-desc">Tap any island to dock and talk with your AI Guide</p>
+                <p class="map-desc">Tap any island to explore chapter insights and history</p>
             </div>
         </div>
 
@@ -144,7 +144,7 @@
         </div>
     </section>
 
-    <!-- SCREEN 3: Island Stage View (Media Showcase + Live Voice Assistant) -->
+    <!-- SCREEN 3: Island Stage View (Media Showcase + AI Digital Curator) -->
     <section id="island-screen" class="screen hidden">
         <div class="island-stage-layout">
             
@@ -169,59 +169,62 @@
                 </div>
             </div>
 
-            <!-- Right: Conversational Voice Guide Stage -->
-            <div class="island-voice-col">
-                <div class="voice-card">
+            <!-- Right: AI Digital Curator & Touchscreen Explorer -->
+            <div class="island-curator-col">
+                <div class="curator-card">
                     
-                    <!-- Siri/Gemini Live Voice Orb Visualizer -->
-                    <div class="voice-orb-stage">
-                        <div id="voice-aura" class="voice-aura listening">
-                            <div class="aura-wave wave-1"></div>
-                            <div class="aura-wave wave-2"></div>
-                            <div class="aura-core">
-                                <span id="voice-status-icon" class="voice-status-icon">🎙️</span>
+                    <div class="curator-header">
+                        <div class="curator-brand">
+                            <span class="curator-icon">🤖</span>
+                            <div class="curator-titles">
+                                <span class="curator-name">TSYP 14 AI CURATOR</span>
+                                <span class="curator-sub">IEEE ISSAT SOUSSE • UTOPIA 2026</span>
                             </div>
                         </div>
-                        <div class="voice-status-wrap">
-                            <span id="voice-status-label" class="voice-status-label">Live • Listening...</span>
-                            <div id="soundwave-anim" class="soundwave-bars active">
-                                <span></span><span></span><span></span><span></span><span></span>
-                            </div>
-                        </div>
+                        <span class="curator-status-badge">ONLINE</span>
                     </div>
 
-                    <!-- AI Subtitle Bubble -->
+                    <!-- AI Display Bubble -->
                     <div class="ai-speech-bubble">
-                        <div class="speech-bubble-header">
-                            <span class="guide-tag">🤖 AI GUIDE • TSYP 14</span>
-                            <span class="live-pill">LIVE VOICE</span>
+                        <div class="bubble-meta">
+                            <span class="meta-tag">CHAPTER INSIGHT</span>
                         </div>
                         <div id="ai-speech-text" class="speech-bubble-body">
                             Welcome to the IEEE ISSAT Sousse AI Sanctuary! Tap any island to explore.
                         </div>
                     </div>
 
-                    <!-- User Speech Bubble (Shows what the user just asked) -->
+                    <!-- User Question Bubble (Visible when visitor inquires) -->
                     <div id="user-speech-bubble" class="user-speech-bubble hidden">
                         <div class="user-bubble-header">
-                            <span>👤 You:</span>
+                            <span>👤 Question:</span>
                         </div>
                         <div id="user-speech-text" class="user-bubble-body">...</div>
                     </div>
 
-                    <!-- Quick Voice Prompt Chips -->
+                    <!-- Quick Touch Topic Chips -->
                     <div class="prompt-chips-wrap">
                         <span class="chips-title">SUGGESTED QUESTIONS:</span>
                         <div id="island-chips" class="island-chips">
-                            <button class="topic-chip" onclick="askQuestion('Tell me about this chapter.')">💡 Overview</button>
-                            <button class="topic-chip" onclick="askQuestion('What are the key achievements?')">🏆 Key Wins</button>
-                            <button class="topic-chip" onclick="askQuestion('How can students join?')">👥 Join Team</button>
+                            <!-- Populated dynamically based on language -->
                         </div>
                     </div>
 
-                    <div class="voice-hint-bar">
-                        <span>🎙️ Always listening — speak naturally anytime to ask anything!</span>
-                    </div>
+                    <!-- On-Screen Direct Touch Query Bar -->
+                    <form id="query-form" class="touch-query-bar" onsubmit="handleQuerySubmit(event)">
+                        <input 
+                            type="text" 
+                            id="custom-query-input" 
+                            class="touch-query-input" 
+                            placeholder="Ask AI anything about this chapter..." 
+                            maxlength="140"
+                            autocomplete="off"
+                        >
+                        <button type="submit" id="submit-query-btn" class="touch-query-btn">
+                            <span class="btn-text">Ask AI</span>
+                            <span class="btn-sparkle">✦</span>
+                        </button>
+                    </form>
 
                 </div>
             </div>
@@ -229,7 +232,7 @@
         </div>
     </section>
 
-    <!-- Global Floating Navigation Dock (Persistent across Map & Islands) -->
+    <!-- Global Floating Navigation Dock (Clean 3-Button Layout) -->
     <nav id="kiosk-dock" class="floating-dock hidden-on-welcome">
         <button id="dock-map-btn" class="dock-btn map-btn" onclick="openArchipelagoMap()" title="View Archipelago Map">
             <span class="btn-icon">🗺️</span>
@@ -241,20 +244,12 @@
             <span class="btn-label">Prev</span>
         </button>
 
-        <button id="dock-mic-btn" class="dock-btn live-mic-btn" onclick="toggleUserMic()" title="Mute/Unmute Your Microphone">
-            <span id="dock-mic-icon" class="mic-icon">🎙️</span>
-            <span id="dock-mic-label" class="btn-label">Mic Live</span>
-        </button>
-
         <button id="dock-next-btn" class="dock-btn nav-btn" onclick="nextIsland()" title="Next Island">
             <span class="btn-label">Next</span>
             <span class="btn-arrow">❯</span>
         </button>
     </nav>
 
-    <!-- Dedicated HTML5 Audio Player (Zero Event Loss in WebKit/Safari/Chrome) -->
-    <audio id="kiosk-audio-player" preload="auto" playsinline style="display:none"></audio>
-
-    <script src="script.js?v=5"></script>
+    <script src="script.js?v=6"></script>
 </body>
 </html>
