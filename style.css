@@ -220,6 +220,68 @@ html, body {
     transform: translateY(-1px);
 }
 
+.header-util-btn {
+    background: rgba(0, 243, 255, 0.08);
+    border: 1px solid rgba(0, 243, 255, 0.35);
+    color: #38bdf8;
+    padding: 7px 14px;
+    border-radius: 20px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.header-util-btn:hover {
+    background: rgba(0, 243, 255, 0.25);
+    color: #ffffff;
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 14px rgba(0, 243, 255, 0.4);
+    transform: translateY(-1px);
+}
+
+#top-bar {
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease;
+}
+
+#top-bar.collapsed {
+    transform: translateY(-100%);
+    pointer-events: none;
+    opacity: 0;
+}
+
+body.topbar-hidden .screen {
+    top: 0;
+    height: 100vh;
+}
+
+.restore-bar-btn {
+    position: fixed;
+    top: 14px;
+    right: 20px;
+    z-index: 999;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid var(--neon-cyan);
+    color: var(--neon-cyan);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    box-shadow: 0 0 15px rgba(0, 243, 255, 0.35);
+    transition: all 0.2s ease;
+}
+
+.restore-bar-btn:hover {
+    background: var(--neon-cyan);
+    color: #030712;
+    box-shadow: 0 0 20px var(--neon-cyan);
+}
+
 /* ================= SCREEN VISIBILITY ================= */
 .screen {
     position: absolute;
@@ -229,7 +291,7 @@ html, body {
     z-index: 10;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.35s ease;
+    transition: opacity 0.35s ease, top 0.35s ease, height 0.35s ease;
     display: flex;
     flex-direction: column;
 }
@@ -679,13 +741,20 @@ html, body {
 .archipelago-canvas-wrap {
     position: relative;
     width: 100%;
-    height: calc(100vh - 180px);
+    height: calc(100vh - 195px);
+    max-height: calc(100vh - 195px);
     border: 1px solid var(--border-glass-subtle);
     border-radius: 24px;
     background: rgba(15, 23, 42, 0.4);
     backdrop-filter: var(--glass-blur);
     overflow: hidden;
     box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.6);
+    margin-bottom: 95px;
+}
+
+body.topbar-hidden .archipelago-canvas-wrap {
+    height: calc(100vh - 130px);
+    max-height: calc(100vh - 130px);
 }
 
 .constellation-svg {
@@ -1257,7 +1326,58 @@ html, body {
     pointer-events: none;
 }
 
-/* ================= IPAD / TABLET MEDIA QUERIES ================= */
+/* ================= IPAD / TABLET OPTIMIZATIONS & AUTOSCALE ================= */
+@media (max-width: 1180px), (max-height: 850px) {
+    #top-bar {
+        padding: 8px 18px;
+    }
+    .decade-pill {
+        display: none; /* Frees up header space on iPad */
+    }
+    .map-title {
+        font-size: 1.4rem;
+    }
+    .map-desc {
+        font-size: 0.85rem;
+    }
+    .archipelago-canvas-wrap {
+        height: calc(100vh - 170px);
+        margin-bottom: 75px;
+    }
+    body.topbar-hidden .archipelago-canvas-wrap {
+        height: calc(100vh - 105px);
+    }
+    .island-node {
+        padding: 5px 12px;
+        min-width: 120px;
+        max-width: 180px;
+        gap: 8px;
+        border-radius: 16px;
+    }
+    .node-icon-box {
+        width: 30px;
+        height: 30px;
+        font-size: 1.05rem;
+        border-radius: 10px;
+    }
+    .node-name {
+        font-size: 0.74rem;
+        line-height: 1.2;
+    }
+    .node-badge-tag {
+        font-size: 0.55rem;
+    }
+    .floating-dock {
+        bottom: 14px;
+        padding: 6px 14px;
+        gap: 10px;
+    }
+    .dock-btn {
+        padding: 8px 14px;
+        font-size: 0.78rem;
+    }
+}
+
 @media (max-width: 1024px) {
     .island-stage-layout {
         grid-template-columns: 1fr;
@@ -1268,18 +1388,6 @@ html, body {
     }
     .island-title {
         font-size: 1.4rem;
-    }
-    .island-node {
-        padding: 6px 12px;
-        max-width: 220px;
-        min-width: 130px;
-    }
-    .node-name {
-        font-size: 0.78rem;
-        white-space: normal;
-        line-height: 1.2;
-        overflow: visible;
-        text-overflow: unset;
     }
     .lang-cards-grid {
         grid-template-columns: 1fr;

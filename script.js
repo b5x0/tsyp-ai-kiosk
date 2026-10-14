@@ -113,6 +113,7 @@ if (ui.exitBtn) ui.exitBtn.addEventListener('click', exitToIdle);
 // ==============================================================================
 
 function openLangModal() {
+    requestKioskFullscreen();
     const modal = document.getElementById('lang-modal-overlay');
     if (modal) modal.classList.remove('hidden');
 }
@@ -444,11 +445,61 @@ function stopTimers() {
     isThinking = false;
 }
 
+// ==============================================================================
+// 6. IPAD FULLSCREEN & TOPBAR COLLAPSE CONTROLS
+// ==============================================================================
+
+function toggleKioskFullscreen() {
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        requestKioskFullscreen();
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        }
+    }
+}
+
+function requestKioskFullscreen() {
+    const docEl = document.documentElement;
+    if (docEl.requestFullscreen) {
+        docEl.requestFullscreen().catch(() => {});
+    } else if (docEl.webkitRequestFullscreen) {
+        docEl.webkitRequestFullscreen();
+    }
+}
+
+function toggleTopBarCollapse() {
+    const topBar = document.getElementById('top-bar');
+    const restoreBtn = document.getElementById('restore-bar-btn');
+    if (!topBar) return;
+    const isCollapsed = topBar.classList.toggle('collapsed');
+    document.body.classList.toggle('topbar-hidden', isCollapsed);
+    if (restoreBtn) {
+        if (isCollapsed) restoreBtn.classList.remove('hidden');
+        else restoreBtn.classList.add('hidden');
+    }
+    // Re-render map constellation lines to match resized canvas
+    setTimeout(renderArchipelagoMap, 350);
+}
+
 // Keyboard shortcuts for Kiosk
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') exitToIdle();
     if (e.key === 'ArrowRight') nextIsland();
     if (e.key === 'ArrowLeft') prevIsland();
+    if (e.key === 'f' || e.key === 'F') toggleKioskFullscreen();
+});
+
+// Auto-redraw constellation on rotation/resize
+window.addEventListener('resize', () => {
+    if (screens.map && screens.map.classList.contains('active')) {
+        renderArchipelagoMap();
+    }
+});
+window.addEventListener('orientationchange', () => {
+    setTimeout(renderArchipelagoMap, 250);
 });
 
 // Auto initialize island metadata on load

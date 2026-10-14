@@ -4,15 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TSYP 14 AI Kiosk | IEEE ISSAT Sousse (2026)</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="TSYP Kiosk">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#030712">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icon.png">
+    <link rel="icon" type="image/png" href="assets/icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=6">
+    <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
     <!-- Background Starfall & Cosmic Glow -->
     <div id="starfall"></div>
     <div class="cosmic-nebula"></div>
+
+    <!-- Floating restore pill when top bar is collapsed on iPad -->
+    <button id="restore-bar-btn" class="restore-bar-btn hidden" onclick="toggleTopBarCollapse()" title="Show Header Bar">▼ Show Bar</button>
 
     <!-- Persistent Top Bar -->
     <header id="top-bar">
@@ -36,6 +47,8 @@
                 <button class="lang-chip" data-lang="fr" onclick="setLanguage('fr')">FR</button>
                 <button class="lang-chip" data-lang="ar" onclick="setLanguage('ar')">🇹🇳 تونس</button>
             </div>
+            <button id="fullscreen-btn" class="header-util-btn" onclick="toggleKioskFullscreen()" title="Toggle Fullscreen Mode">⛶ Fullscreen</button>
+            <button id="collapse-bar-btn" class="header-util-btn" onclick="toggleTopBarCollapse()" title="Hide Header Bar">▲ Hide Bar</button>
             <button id="exit-btn" class="exit-btn" onclick="exitToIdle()" title="Close session and return to welcome screen">✕ Close</button>
         </div>
     </header>
@@ -250,6 +263,6 @@
         </button>
     </nav>
 
-    <script src="script.js?v=6"></script>
+    <script src="script.js?v=7"></script>
 </body>
 </html>
