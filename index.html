@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
     <!-- Background Starfall & Cosmic Glow -->
@@ -32,11 +32,11 @@
 
         <div class="header-actions">
             <div class="lang-selector-group">
-                <button class="lang-chip" data-lang="en" onclick="quickSwitchLang('en')">EN</button>
+                <button class="lang-chip active" data-lang="en" onclick="quickSwitchLang('en')">EN</button>
                 <button class="lang-chip" data-lang="fr" onclick="quickSwitchLang('fr')">FR</button>
                 <button class="lang-chip" data-lang="ar" onclick="quickSwitchLang('ar')">🇹🇳 تونس</button>
             </div>
-            <button id="exit-btn" class="exit-btn" onclick="fullReset()">✕ Exit</button>
+            <button id="exit-btn" class="exit-btn" onclick="exitToIdle()" title="Close session and return to welcome screen">✕ Close</button>
         </div>
     </header>
 
@@ -64,7 +64,7 @@
             </div>
 
             <div class="idle-cta-group">
-                <button id="start-btn" class="primary-btn glow-btn">
+                <button id="start-btn" class="primary-btn glow-btn" onclick="switchScreen('lang')">
                     <span class="btn-icon">🎙️</span>
                     <span class="btn-text">Start Interactive Tour</span>
                 </button>
@@ -124,7 +124,7 @@
                 </button>
             </div>
 
-            <button class="back-link" onclick="goToIdle()">❮ Back to Welcome</button>
+            <button class="back-link" onclick="exitToIdle()">❮ Close / Back to Welcome</button>
         </div>
     </section>
 
@@ -169,7 +169,7 @@
         <div id="subtitles-container">
             <div class="dialog-stack">
                 <!-- User Speech Bubble -->
-                <div id="user-subtitles" class="subtitle-bubble user-bubble hidden-sub">
+                <div id="user-subtitles" class="subtitle-bubble user-bubble hidden">
                     <div class="bubble-header">
                         <span class="speaker-icon">👤</span>
                         <span class="speaker-name">You</span>
@@ -192,11 +192,20 @@
 
             <!-- Quick Suggestion Topic Pills -->
             <div id="topic-pills" class="topic-pills">
-                <button class="topic-chip" onclick="askPreset('Tell me about the humanoid NAO robot.')">🤖 NAO Robot</button>
-                <button class="topic-chip" onclick="askPreset('What is the Vecna Algorithm hackathon?')">💻 Vecna Hackathon</button>
-                <button class="topic-chip" onclick="askPreset('How did the branch win the TSYP 12 Challenge?')">🏆 TSYP 12 Win</button>
-                <button class="topic-chip" onclick="askPreset('What is the WALL-E environmental hackathon?')">🌱 Wall-E Hackathon</button>
-                <button class="topic-chip" onclick="askPreset('Who is in the Executive Board team?')">👥 Executive Board</button>
+                <button class="topic-chip" onclick="askQuestion('Tell me about the humanoid NAO robot.')">🤖 NAO Robot</button>
+                <button class="topic-chip" onclick="askQuestion('What is the Vecna Algorithm hackathon?')">💻 Vecna Hackathon</button>
+                <button class="topic-chip" onclick="askQuestion('How did the branch win the TSYP 12 Challenge?')">🏆 TSYP 12 Win</button>
+                <button class="topic-chip" onclick="askQuestion('What is the WALL-E environmental hackathon?')">🌱 Wall-E Hackathon</button>
+                <button class="topic-chip" onclick="askQuestion('Who is in the Executive Board team?')">👥 Executive Board</button>
+            </div>
+
+            <!-- Integrated Question Input Bar -->
+            <div class="question-input-bar">
+                <input type="text" id="question-input" placeholder="Ask any question about IEEE ISSAT Sousse..." autocomplete="off">
+                <button id="send-question-btn" class="send-btn" onclick="submitTextQuestion()">
+                    <span>Send</span>
+                    <span class="send-arrow">➔</span>
+                </button>
             </div>
         </div>
 
@@ -212,7 +221,7 @@
                 <span id="tour-toggle-label" class="btn-label">Tour Mode</span>
             </button>
 
-            <button id="ask-btn" class="dock-btn mic-btn" title="Tap to Speak">
+            <button id="ask-btn" class="dock-btn mic-btn" onclick="toggleMicClick()" title="Tap to Speak">
                 <div class="mic-icon-wrap">
                     <span class="mic-icon">🎤</span>
                 </div>
@@ -226,18 +235,6 @@
         </nav>
     </section>
 
-    <!-- Fallback Text Input Modal (accessible via keyboard or if mic unavailable) -->
-    <div id="text-input-modal" class="text-modal hidden">
-        <div class="modal-card">
-            <h3>Ask the AI Guide</h3>
-            <div class="input-row">
-                <input type="text" id="manual-input" placeholder="Type your question about IEEE ISSAT Sousse...">
-                <button id="manual-send-btn" onclick="sendManualQuery()">Send</button>
-            </div>
-            <button class="close-modal-btn" onclick="toggleInputModal(false)">Close</button>
-        </div>
-    </div>
-
-    <script src="script.js"></script>
+    <script src="script.js?v=3"></script>
 </body>
 </html>

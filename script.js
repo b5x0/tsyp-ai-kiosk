@@ -2,9 +2,29 @@
 // TSYP 13 AI KIOSK - CORE FRONTEND ENGINE
 // ==============================================================================
 
-const BACKEND_URL = window.location.origin;
+const BACKEND_URL = (window.location.origin && window.location.origin.startsWith('http')) 
+    ? window.location.origin 
+    : 'http://127.0.0.1:5005';
 
-// State
+// Universal Web Audio Context Unlocker on First Touch/Click
+let audioContextUnlocked = false;
+function unlockAudioContext() {
+    if (audioContextUnlocked) return;
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+            const ctx = new AudioCtx();
+            if (ctx.state === 'suspended') ctx.resume();
+        }
+        const dummy = new Audio();
+        dummy.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+        dummy.play().then(() => { audioContextUnlocked = true; }).catch(() => {});
+    } catch(e) {}
+}
+window.addEventListener('click', unlockAudioContext, { once: true });
+window.addEventListener('touchstart', unlockAudioContext, { once: true });
+
+// State Variables
 let currentChapterId = "GREETING";
 let tourData = [];
 let currentSlideIndex = 0;
@@ -16,6 +36,7 @@ let imageFadeTimeout = null;
 
 let isTourMode = false;
 let isTransactionActive = false;
+let isListeningActive = false;
 let silenceTimer = null;
 
 // DOM Elements
@@ -41,13 +62,15 @@ const ui = {
     userSubContainer: document.getElementById('user-subtitles'),
     audioWave: document.getElementById('audio-wave'),
     
+    questionInput: document.getElementById('question-input'),
+    btnSendQuestion: document.getElementById('send-question-btn'),
+    
     btnNext: document.getElementById('next-btn'),
     btnPrev: document.getElementById('prev-btn'),
     btnAsk: document.getElementById('ask-btn'),
     askBtnText: document.getElementById('ask-btn-text'),
     tourToggleBtn: document.getElementById('tour-toggle-btn'),
     tourToggleLabel: document.getElementById('tour-toggle-label'),
-    tourToggleIcon: document.getElementById('tour-toggle-icon'),
     exitBtn: document.getElementById('exit-btn'),
     
     langChips: document.querySelectorAll('.lang-chip')
@@ -58,7 +81,7 @@ function initStarfall() {
     const container = document.getElementById('starfall');
     if (!container) return;
     container.innerHTML = '';
-    const starCount = 70;
+    const starCount = 65;
     
     for (let i = 0; i < starCount; i++) {
         const star = document.createElement('div');
@@ -75,11 +98,13 @@ function initStarfall() {
 }
 initStarfall();
 
-// Screen Management
+// Screen Transitions
 function switchScreen(name) {
     Object.values(screens).forEach(s => {
-        s.classList.add('hidden');
-        s.classList.remove('active');
+        if (s) {
+            s.classList.add('hidden');
+            s.classList.remove('active');
+        }
     });
     if (screens[name]) {
         screens[name].classList.remove('hidden');
@@ -87,14 +112,27 @@ function switchScreen(name) {
     }
 }
 
-document.getElementById('start-btn').addEventListener('click', () => switchScreen('lang'));
-function goToIdle() {
+// Exit to Idle (Close / Reset)
+function exitToIdle() {
     stopEverything();
+    currentSlideIndex = 0;
+    currentChapterId = "GREETING";
+    isTourMode = false;
+    exitMuseumMode();
+    setButtonsState('idle');
     switchScreen('idle');
+    ui.aiSubText.innerText = "Welcome to the IEEE ISSAT Sousse AI Kiosk! Select a language to begin.";
+    ui.userSubContainer.classList.add('hidden');
+    if (ui.questionInput) ui.questionInput.value = '';
 }
 
-// Language chip highlight
+if (ui.exitBtn) {
+    ui.exitBtn.addEventListener('click', exitToIdle);
+}
+
+// Highlight active language chip
 function updateLangChipUI(lang) {
+    if (!ui.langChips) return;
     ui.langChips.forEach(chip => {
         if (chip.getAttribute('data-lang') === lang) {
             chip.classList.add('active');
@@ -106,14 +144,13 @@ function updateLangChipUI(lang) {
 
 // ================= 2. SESSION INITIALIZATION =================
 async function selectLanguage(lang) {
-    if (isTransactionActive) return;
-    isTransactionActive = true;
+    stopEverything();
     currentLang = lang;
     updateLangChipUI(lang);
 
     switchScreen('main');
     ui.aiSubText.innerText = "Connecting to AI Museum Guide...";
-    ui.userSubContainer.classList.add('hidden-sub');
+    ui.userSubContainer.classList.add('hidden');
 
     try {
         const res = await fetch(`${BACKEND_URL}/get_tour_data`, {
@@ -123,14 +160,12 @@ async function selectLanguage(lang) {
         });
         const data = await res.json();
         tourData = data.tour || [];
-        isTransactionActive = false;
 
         currentSlideIndex = 0;
         playSlide(0, false);
     } catch(err) {
         console.error("Load Tour Error:", err);
         ui.aiSubText.innerText = "Connection error. Please try again.";
-        isTransactionActive = false;
         setButtonsState('idle');
     }
 }
@@ -141,7 +176,7 @@ async function quickSwitchLang(lang) {
     currentLang = lang;
     updateLangChipUI(lang);
     
-    ui.aiSubText.innerText = "Changing language...";
+    ui.aiSubText.innerText = "Switching language...";
     try {
         const res = await fetch(`${BACKEND_URL}/get_tour_data`, {
             method: 'POST',
@@ -166,7 +201,7 @@ function playSlide(index, showVisuals = true) {
     currentSlideIndex = index;
     currentChapterId = slide.id || "GREETING";
 
-    // Update Meta texts
+    // Meta Information
     ui.chapterTag.innerText = `CHAPTER ${String(index + 1).padStart(2, '0')} / ${String(tourData.length).padStart(2, '0')}`;
     ui.slideTitle.innerText = slide.title || "IEEE ISSAT Sousse";
     ui.slideSubtitle.innerText = slide.subtitle || "";
@@ -182,37 +217,46 @@ function playSlide(index, showVisuals = true) {
     if (slide.audio) {
         setButtonsState('locked');
         const format = slide.audio_format || 'mp3';
-        audioObj = new Audio(`data:audio/${format};base64,${slide.audio}`);
         
-        ui.orb.classList.add('speaking');
-        ui.orbStatusText.innerText = "Speaking...";
-        ui.audioWave.classList.add('active');
+        try {
+            audioObj = new Audio(`data:audio/${format};base64,${slide.audio}`);
+            
+            ui.orb.classList.add('speaking');
+            ui.orbStatusText.innerText = "Speaking...";
+            ui.audioWave.classList.add('active');
 
-        if (showVisuals && slide.images && slide.images.length > 0) {
-            startSmartSlideshow(slide.images, audioObj);
+            if (showVisuals && slide.images && slide.images.length > 0) {
+                startSmartSlideshow(slide.images, audioObj);
+            }
+
+            audioObj.play().catch(e => {
+                console.log("Audio autoplay prevented by browser policy:", e);
+                ui.orb.classList.remove('speaking');
+                ui.orbStatusText.innerText = "Ready";
+                ui.audioWave.classList.remove('active');
+                setButtonsState('idle');
+            });
+
+            audioObj.onerror = (e) => {
+                console.error("Audio error:", e);
+                ui.orb.classList.remove('speaking');
+                ui.orbStatusText.innerText = "Ready";
+                ui.audioWave.classList.remove('active');
+                setButtonsState('idle');
+            };
+
+            audioObj.onended = () => {
+                ui.orb.classList.remove('speaking');
+                ui.orbStatusText.innerText = "Ready";
+                ui.audioWave.classList.remove('active');
+                setButtonsState('idle');
+            };
+        } catch(e) {
+            console.error("Audio init error:", e);
+            setButtonsState('idle');
         }
-
-        audioObj.play().catch(e => console.log("Autoplay policy:", e));
-
-        audioObj.onended = () => {
-            ui.orb.classList.remove('speaking');
-            ui.orbStatusText.innerText = "Ready";
-            ui.audioWave.classList.remove('active');
-
-            setTimeout(() => {
-                if (index === 0) {
-                    // Auto-listen after greeting
-                    ui.userSubText.innerText = "Say 'Start Tour' or ask a question...";
-                    ui.userSubContainer.classList.remove('hidden-sub');
-                    startListening();
-                } else {
-                    setButtonsState('idle');
-                }
-            }, 600);
-        };
     } else {
         setButtonsState('idle');
-        if (index === 0) startListening();
     }
 }
 
@@ -222,28 +266,39 @@ function playDynamicResponse(text, audioB64, format = 'mp3') {
 
     if (audioB64) {
         setButtonsState('locked');
-        audioObj = new Audio(`data:audio/${format};base64,${audioB64}`);
-        
-        ui.orb.classList.add('speaking');
-        ui.orbStatusText.innerText = "Speaking...";
-        ui.audioWave.classList.add('active');
-        
-        audioObj.play().catch(e => console.log("Audio play error:", e));
-
-        audioObj.onended = () => {
-            ui.orb.classList.remove('speaking');
-            ui.orbStatusText.innerText = "Ready";
-            ui.audioWave.classList.remove('active');
-
-            setTimeout(() => {
+        try {
+            audioObj = new Audio(`data:audio/${format};base64,${audioB64}`);
+            
+            ui.orb.classList.add('speaking');
+            ui.orbStatusText.innerText = "Speaking...";
+            ui.audioWave.classList.add('active');
+            
+            audioObj.play().catch(e => {
+                console.log("Audio play prevented:", e);
+                ui.orb.classList.remove('speaking');
+                ui.orbStatusText.innerText = "Ready";
+                ui.audioWave.classList.remove('active');
                 setButtonsState('idle');
-                if (!isTourMode) {
-                    ui.userSubText.innerText = "Listening...";
-                    ui.userSubContainer.classList.remove('hidden-sub');
-                    startListening();
-                }
-            }, 600);
-        };
+            });
+
+            audioObj.onerror = (e) => {
+                console.error("Audio error:", e);
+                ui.orb.classList.remove('speaking');
+                ui.orbStatusText.innerText = "Ready";
+                ui.audioWave.classList.remove('active');
+                setButtonsState('idle');
+            };
+
+            audioObj.onended = () => {
+                ui.orb.classList.remove('speaking');
+                ui.orbStatusText.innerText = "Ready";
+                ui.audioWave.classList.remove('active');
+                setButtonsState('idle');
+            };
+        } catch(e) {
+            console.error("Dynamic audio init error:", e);
+            setButtonsState('idle');
+        }
     } else {
         setButtonsState('idle');
     }
@@ -287,7 +342,7 @@ function startSmartSlideshow(images, audio) {
                 ui.img.src = images[currentIdx];
                 ui.img.classList.remove('fade-out');
                 updateDots(currentIdx);
-            }, 400);
+            }, 350);
         }, intervalMs);
     };
 
@@ -295,12 +350,11 @@ function startSmartSlideshow(images, audio) {
         setupCycle(audio.duration);
     } else {
         audio.onloadedmetadata = () => {
-            setupCycle(audio.duration || 12);
+            setupCycle(audio.duration || 10);
         };
-        // Fallback timer if metadata takes long
         setTimeout(() => {
-            if (!imageInterval) setupCycle(12);
-        }, 1500);
+            if (!imageInterval) setupCycle(10);
+        }, 1200);
     }
 }
 
@@ -328,14 +382,91 @@ function exitMuseumMode() {
 function toggleTourMode() {
     if (isTourMode) {
         exitMuseumMode();
-        ui.aiSubText.innerText = "Switched to Interactive Q&A Mode. Ask me any question!";
+        ui.aiSubText.innerText = "Interactive Q&A Mode. Ask me any question!";
     } else {
-        currentSlideIndex = 1;
-        playSlide(1, true);
+        if (!tourData || tourData.length === 0) {
+            selectLanguage(currentLang);
+        } else {
+            const nextIdx = currentSlideIndex === 0 ? 1 : currentSlideIndex;
+            playSlide(nextIdx, true);
+        }
     }
 }
 
-// ================= 4. SPEECH RECOGNITION (ANTI-ZOMBIE LOGIC) =================
+// ================= 4. QUESTION & INTENT ENGINE =================
+// Master question handler for Speech, Topic Chips, and Text Input
+function askQuestion(queryText) {
+    if (!queryText || !queryText.trim()) return;
+    queryText = queryText.trim();
+
+    stopEverything(); // Immediately stop current audio
+    switchScreen('main'); // Ensure main presentation & chat stage is active
+    ui.userSubText.innerText = queryText;
+    ui.userSubContainer.classList.remove('hidden');
+
+    handleUserIntent(queryText);
+}
+
+async function handleUserIntent(text) {
+    ui.aiSubText.innerText = "Thinking...";
+    ui.orbStatusText.innerText = "Analyzing...";
+    setButtonsState('locked');
+
+    try {
+        const res = await fetch(`${BACKEND_URL}/chat_router`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                text: text,
+                lang: currentLang,
+                chapter: currentChapterId
+            })
+        });
+
+        const data = await res.json();
+
+        // TOUR INTENT
+        if (data.mode === 'TOUR') {
+            if (!tourData || tourData.length === 0) {
+                await selectLanguage(currentLang);
+            }
+            currentSlideIndex = 1;
+            playSlide(1, true);
+            return;
+        }
+
+        // CHAT INTENT
+        if (data.response) {
+            playDynamicResponse(data.response, data.audio, data.audio_format || 'mp3');
+        } else {
+            ui.aiSubText.innerText = "I'm ready for your next question!";
+            setButtonsState('idle');
+        }
+    } catch(err) {
+        console.error("Router error:", err);
+        ui.aiSubText.innerText = "Network connection issue. Please retry.";
+        setButtonsState('idle');
+    }
+}
+
+// Text Input Bar Handler
+function submitTextQuestion() {
+    if (!ui.questionInput) return;
+    const text = ui.questionInput.value;
+    if (!text || !text.trim()) return;
+    ui.questionInput.value = '';
+    askQuestion(text);
+}
+
+if (ui.questionInput) {
+    ui.questionInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            submitTextQuestion();
+        }
+    });
+}
+
+// ================= 5. SPEECH RECOGNITION (ANTI-ZOMBIE LOGIC) =================
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
 let speechAvailable = false;
@@ -351,21 +482,29 @@ if (SpeechRecognition) {
     }
 }
 
-if (ui.btnAsk) {
-    ui.btnAsk.addEventListener('click', () => {
-        if (isTransactionActive) return;
-        if (!speechAvailable) {
-            toggleInputModal(true);
-            return;
+function toggleMicClick() {
+    if (isListeningActive) {
+        // User clicked mic while listening -> Stop and commit
+        stopListeningAndCommit();
+    } else {
+        // User clicked mic to start speaking
+        if (audioObj) {
+            audioObj.pause();
+            audioObj = null;
         }
         ui.userSubText.innerText = "Listening...";
-        ui.userSubContainer.classList.remove('hidden-sub');
+        ui.userSubContainer.classList.remove('hidden');
         startListening();
-    });
+    }
 }
 
 function startListening() {
-    if (isTransactionActive || !speechAvailable) return;
+    if (!speechAvailable) {
+        ui.userSubContainer.classList.remove('hidden');
+        ui.userSubText.innerText = "Microphone not supported in this browser. Please type below.";
+        if (ui.questionInput) ui.questionInput.focus();
+        return;
+    }
 
     try { recognition.abort(); } catch(e) {}
 
@@ -374,14 +513,31 @@ function startListening() {
             recognition.lang = currentLang === 'ar' ? 'ar-TN' : (currentLang === 'fr' ? 'fr-FR' : 'en-US');
             recognition.start();
 
+            isListeningActive = true;
             setButtonsState('listening');
             ui.orb.classList.add('listening');
             ui.orbStatusText.innerText = "Listening...";
         } catch(err) {
             console.error("Mic start failed:", err);
+            isListeningActive = false;
             setButtonsState('idle');
+            ui.userSubText.innerText = "Tap mic to retry or type below.";
         }
-    }, 80);
+    }, 60);
+}
+
+function stopListeningAndCommit() {
+    isListeningActive = false;
+    clearTimeout(silenceTimer);
+    try { if (recognition) recognition.abort(); } catch(e) {}
+
+    ui.orb.classList.remove('listening');
+    setButtonsState('idle');
+
+    const spokenText = ui.userSubText.innerText.replace("Listening...", "").trim();
+    if (spokenText && spokenText.length > 0) {
+        handleUserIntent(spokenText);
+    }
 }
 
 if (recognition) {
@@ -402,103 +558,43 @@ if (recognition) {
         const displayText = final || interim;
         ui.userSubText.innerText = displayText;
 
-        // 1.8 seconds pause detection
+        // Silence pause detector: 1.6s
         silenceTimer = setTimeout(() => {
             if (displayText.trim().length > 0) {
-                commitUserSpeech(displayText);
+                isListeningActive = false;
+                try { recognition.abort(); } catch(e) {}
+                ui.orb.classList.remove('listening');
+                setButtonsState('idle');
+                handleUserIntent(displayText.trim());
             }
-        }, 1800);
+        }, 1600);
     };
 
     recognition.onend = () => {
         ui.orb.classList.remove('listening');
-        if (!isTransactionActive) {
-            ui.orbStatusText.innerText = "Ready";
-            setTimeout(() => {
-                if (ui.askBtnText.innerText.includes("Listening")) {
-                    setButtonsState('idle');
-                }
-            }, 800);
+        if (isListeningActive) {
+            isListeningActive = false;
+            setButtonsState('idle');
         }
     };
 
     recognition.onerror = (e) => {
-        console.warn("Recognition event:", e.error);
+        console.warn("Recognition error:", e.error);
+        isListeningActive = false;
+        ui.orb.classList.remove('listening');
+        setButtonsState('idle');
+
         if (e.error === 'not-allowed') {
-            ui.userSubText.innerText = "Microphone access blocked. Use buttons or type below.";
+            ui.userSubContainer.classList.remove('hidden');
+            ui.userSubText.innerText = "Microphone access blocked. Please type in the input bar below!";
+            if (ui.questionInput) ui.questionInput.focus();
         }
     };
 }
 
-async function commitUserSpeech(text) {
-    try { if (recognition) recognition.abort(); } catch(e) {}
-    
-    ui.orb.classList.remove('listening');
-    if (isTransactionActive) return;
-    isTransactionActive = true;
-
-    await handleUserIntent(text);
-}
-
-// ================= 5. ROUTER & REASONING DISPATCH =================
-async function handleUserIntent(text) {
-    if (!text || text.trim() === "") {
-        isTransactionActive = false;
-        setButtonsState('idle');
-        return;
-    }
-
-    ui.aiSubText.innerText = "Thinking...";
-    ui.orbStatusText.innerText = "Analyzing...";
-    setButtonsState('locked');
-
-    try {
-        const res = await fetch(`${BACKEND_URL}/chat_router`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                text: text,
-                lang: currentLang,
-                chapter: currentChapterId
-            })
-        });
-
-        const data = await res.json();
-        isTransactionActive = false;
-
-        // TOUR INTENT
-        if (data.mode === 'TOUR') {
-            currentSlideIndex = 1;
-            playSlide(1, true);
-            return;
-        }
-
-        // CHAT INTENT
-        if (data.response) {
-            playDynamicResponse(data.response, data.audio, data.audio_format || 'mp3');
-        } else {
-            ui.aiSubText.innerText = "I'm ready for your next question!";
-            setButtonsState('idle');
-        }
-    } catch(err) {
-        console.error("Router error:", err);
-        ui.aiSubText.innerText = "Network connection issue. Please retry.";
-        isTransactionActive = false;
-        setButtonsState('idle');
-    }
-}
-
-// Topic Preset Queries
-function askPreset(queryText) {
-    if (isTransactionActive) return;
-    ui.userSubText.innerText = queryText;
-    ui.userSubContainer.classList.remove('hidden-sub');
-    commitUserSpeech(queryText);
-}
-
 // ================= 6. BUTTON STATE MANAGEMENT =================
 function setButtonsState(state) {
-    const isLocked = (state === 'locked' || state === 'listening');
+    const isLocked = (state === 'locked');
     ui.btnNext.disabled = isLocked;
     ui.btnPrev.disabled = isLocked;
     ui.tourToggleBtn.disabled = isLocked;
@@ -508,11 +604,11 @@ function setButtonsState(state) {
     switch(state) {
         case 'listening':
             ui.btnAsk.classList.add('listening');
-            ui.askBtnText.innerText = "Listening...";
+            ui.askBtnText.innerText = "Stop / Send";
             break;
         case 'locked':
             ui.btnAsk.classList.add('locked');
-            ui.askBtnText.innerText = "...";
+            ui.askBtnText.innerText = "Speaking...";
             break;
         case 'idle':
             ui.askBtnText.innerText = "Ask Guide";
@@ -522,21 +618,21 @@ function setButtonsState(state) {
 
 // Navigation Controls
 function nextSlide() {
-    if (isTransactionActive) return;
+    if (!tourData || tourData.length === 0) return;
     if (currentSlideIndex < tourData.length - 1) {
         currentSlideIndex++;
         playSlide(currentSlideIndex, true);
     } else {
         exitMuseumMode();
         playDynamicResponse(
-            "That concludes our 10-year tour! Feel free to ask me anything about our branch or projects.",
+            "That concludes our 10-year tour! Feel free to ask me anything about our branch, teams, or projects.",
             null
         );
     }
 }
 
 function prevSlide() {
-    if (isTransactionActive) return;
+    if (!tourData || tourData.length === 0) return;
     if (currentSlideIndex > 0) {
         currentSlideIndex--;
         playSlide(currentSlideIndex, true);
@@ -552,38 +648,20 @@ function stopEverything() {
     clearTimeout(imageFadeTimeout);
     clearTimeout(silenceTimer);
 
+    isListeningActive = false;
     try { if (recognition) recognition.abort(); } catch(e){}
 
     ui.orb.classList.remove('speaking', 'listening');
     ui.audioWave.classList.remove('active');
-    isTransactionActive = false;
 }
 
-function fullReset() {
-    stopEverything();
-    location.reload();
-}
-
-// Manual Text Input Fallback Modal
-function toggleInputModal(show) {
-    const modal = document.getElementById('text-input-modal');
-    if (!modal) return;
-    if (show) modal.classList.remove('hidden');
-    else modal.classList.add('hidden');
-}
-
-function sendManualQuery() {
-    const input = document.getElementById('manual-input');
-    if (!input || !input.value.trim()) return;
-    const text = input.value.trim();
-    input.value = '';
-    toggleInputModal(false);
-    askPreset(text);
-}
-
+// Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
-    // Arrow shortcuts for kiosk keyboard
+    if (e.key === 'Escape') {
+        exitToIdle();
+        return;
+    }
+    if (e.target && e.target.tagName === 'INPUT') return; // Don't trigger arrows if user is typing
     if (e.key === 'ArrowRight') nextSlide();
     if (e.key === 'ArrowLeft') prevSlide();
-    if (e.key === 'Escape') toggleInputModal(false);
 });
